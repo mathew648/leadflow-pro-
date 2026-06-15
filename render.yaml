@@ -1,0 +1,78 @@
+# Render Blueprint for LeadFlow Pro
+# Provisions: Postgres + Redis (Key Value) + API (Fastify, runs workers in-process) + Web (Next.js)
+#
+# Deploy:  Render Dashboard → New → Blueprint → connect this repo → Apply.
+# After the first deploy, set the two secrets (JWT_SECRET, ENCRYPTION_KEY) — see DEPLOY.md.
+#
+# Free plans are used so the blueprint applies with no surprise charges. They sleep after
+# ~15 min idle (slow first load) and the free DB expires after ~30 days — upgrade the API,
+# Web and DB to "starter" in the dashboard for live client use. See DEPLOY.md.
+
+databases:
+  - name: leadflow-pro-db
+    databaseName: leadflow
+    user: leadflow
+    plan: free
+
+services:
+  # ── Redis (BullMQ queues) ──
+  - type: keyvalue
+    name: leadflow-pro-redis
+    plan: free
+    ipAllowList: []            # internal-only (other Render services can reach it)
+    maxmemoryPolicy: noeviction # required by BullMQ
+
+  # ── API (Fastify + background workers) ──
+  - type: web
+    name: leadflow-pro-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lfp/db exec prisma generate && pnpm --filter api build
+    preDeployCommand: pnpm --filter @lfp/db exec prisma db push --skip-generate --accept-data-loss
+    startCommand: pnpm --filter api start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: leadflow-pro-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: leadflow-pro-redis
+          property: connectionString
+      - key: JWT_SECRET          # set in dashboard: openssl rand -hex 32
+        sync: false
+      - key: ENCRYPTION_KEY      # set in dashboard: openssl rand -hex 32  (64 hex chars)
+        sync: false
+      - key: APP_URL             # public URL of the web service (update if Render renames it)
+        value: https://leadflow-pro-web.onrender.com
+      - key: API_URL
+        value: https://leadflow-pro-api.onrender.com
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      # Optional integrations — add real values in the dashboard to enable:
+      - key: RESEND_API_KEY      # transactional email
+        sync: false
+      - key: ANTHROPIC_API_KEY   # AI lead scoring / assistant
+        sync: false
+
+  # ── Web (Next.js) ──
+  - type: web
+    name: leadflow-pro-web
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter web build
+    startCommand: pnpm --filter web start -- -p $PORT
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_URL            # web proxies /api/* to the API service (see next.config.ts)
+        value: https://leadflow-pro-api.onrender.com

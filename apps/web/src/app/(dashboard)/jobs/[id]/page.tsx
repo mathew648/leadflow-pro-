@@ -1,0 +1,499 @@
+"use client";
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft, Clock, MapPin, User, Wrench, CheckSquare, Package,
+  Camera, Play, CheckCircle, Receipt, ChevronRight, Plus, Trash2,
+  AlertTriangle, Phone, Calendar,
+} from "lucide-react";
+import Link from "next/link";
+import { Topbar } from "@/components/layout/topbar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { formatCurrency, formatDate, formatDateTime, statusColor, priorityColor, cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+
+const JOB_STATUS_FLOW: Record<string, string> = {
+  pending: "scheduled",
+  scheduled: "dispatched",
+  dispatched: "in_progress",
+  in_progress: "completed",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  scheduled: "Scheduled",
+  dispatched: "Dispatched",
+  in_progress: "In Progress",
+  on_hold: "On Hold",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+export default function JobDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "time" | "materials" | "photos">("overview");
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [newMaterial, setNewMaterial] = useState({ name: "", quantity: 1, unitCostCents: 0 });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["job", id],
+    queryFn: () => api.get<any>(`/jobs/${id}`),
+  });
+
+  const patchMutation = useMutation({
+    mutationFn: (body: any) => api.patch(`/jobs/${id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["job", id] });
+      toast({ title: "Job updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const startMutation = useMutation({
+    mutationFn: () => api.post(`/jobs/${id}/start`, { latitude: null, longitude: null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["job", id] });
+      toast({ title: "Job started — time tracking active" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: () => api.post(`/jobs/${id}/complete`, { completionNotes, createInvoice: true }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["job", id] });
+      setShowCompleteDialog(false);
+      toast({ title: "Job completed!", description: res?.invoice ? "Invoice created automatically." : undefined });
+      if (res?.invoice?.id) router.push(`/invoices/${res.invoice.id}`);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const checklistMutation = useMutation({
+    mutationFn: ({ itemId, checked }: { itemId: string; checked: boolean }) =>
+      api.patch(`/jobs/${id}/checklists/any/items/${itemId}`, { checked }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["job", id] }),
+  });
+
+  const addMaterialMutation = useMutation({
+    mutationFn: () => api.post(`/jobs/${id}/materials`, newMaterial),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["job", id] });
+      setNewMaterial({ name: "", quantity: 1, unitCostCents: 0 });
+      toast({ title: "Material added" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const invoiceMutation = useMutation({
+    mutationFn: () => api.post(`/jobs/${id}/invoice`, {}),
+    onSuccess: (res: any) => {
+      toast({ title: "Invoice created!" });
+      if (res?.id || res?.data?.id) router.push(`/invoices/${res.id ?? res.data.id}`);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return (
+      <div>
+        <Topbar title="Job" />
+        <div className="p-6 text-muted-foreground animate-pulse">Loading…</div>
+      </div>
+    );
+  }
+
+  const job = data as any;
+  if (!job) return <div className="p-6">Job not found.</div>;
+
+  const checklists: any[] = job.checklists ?? [];
+  const tasks: any[] = job.tasks ?? [];
+  const timeEntries: any[] = job.timeEntries ?? [];
+  const materials: any[] = job.materials ?? [];
+  const photos: any[] = job.photos ?? [];
+
+  const totalLabourMins = timeEntries
+    .filter((te: any) => te.endedAt)
+    .reduce((sum: number, te: any) => {
+      return sum + (new Date(te.endedAt).getTime() - new Date(te.startedAt).getTime()) / 60000;
+    }, 0);
+
+  const completedItems = checklists.flatMap((cl: any) => cl.items ?? []).filter((item: any) => item.checked).length;
+  const totalItems = checklists.flatMap((cl: any) => cl.items ?? []).length;
+
+  const nextStatus = JOB_STATUS_FLOW[job.status];
+  const isCompleted = job.status === "completed";
+  const canComplete = job.status === "in_progress";
+  const canStart = job.status === "dispatched" || job.status === "scheduled";
+
+  return (
+    <div>
+      <Topbar title={`Job ${job.jobNumber}`} />
+
+      <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-5">
+        <Link href="/jobs" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-4 h-4" /> All Jobs
+        </Link>
+
+        {/* Header card */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h2 className="text-xl font-bold">{job.title}</h2>
+                  <Badge className={cn("text-xs", statusColor(job.status))}>{STATUS_LABELS[job.status] ?? job.status}</Badge>
+                  {job.priority !== "normal" && (
+                    <span className={cn("text-xs font-medium flex items-center gap-0.5", priorityColor(job.priority))}>
+                      <AlertTriangle className="w-3 h-3" /> {job.priority}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">{job.jobNumber}</p>
+              </div>
+
+              <div className="flex gap-2 flex-wrap">
+                {canStart && (
+                  <Button size="sm" onClick={() => startMutation.mutate()} disabled={startMutation.isPending}>
+                    <Play className="w-4 h-4 mr-1.5" /> Start Job
+                  </Button>
+                )}
+                {canComplete && (
+                  <Button size="sm" onClick={() => setShowCompleteDialog(true)}>
+                    <CheckCircle className="w-4 h-4 mr-1.5" /> Complete Job
+                  </Button>
+                )}
+                {isCompleted && !job.invoiceId && (
+                  <Button size="sm" variant="outline" onClick={() => invoiceMutation.mutate()} disabled={invoiceMutation.isPending}>
+                    <Receipt className="w-4 h-4 mr-1.5" /> Create Invoice
+                  </Button>
+                )}
+                {job.invoiceId && (
+                  <Link href={`/invoices/${job.invoiceId}`}>
+                    <Button size="sm" variant="outline">
+                      <Receipt className="w-4 h-4 mr-1.5" /> View Invoice
+                    </Button>
+                  </Link>
+                )}
+                {nextStatus && !isCompleted && !canComplete && !canStart && (
+                  <Button size="sm" variant="outline" onClick={() => patchMutation.mutate({ status: nextStatus })}>
+                    Advance to {STATUS_LABELS[nextStatus]}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Complete dialog */}
+            {showCompleteDialog && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-medium text-green-800 mb-2">Complete Job</p>
+                <textarea
+                  placeholder="Completion notes (optional)…"
+                  value={completionNotes}
+                  onChange={(e) => setCompletionNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-green-400 resize-none mb-2"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
+                    <CheckCircle className="w-4 h-4 mr-1.5" /> Confirm Complete
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowCompleteDialog(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Info grid */}
+            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+              {job.customer && (
+                <Link href={`/customers/${job.customer.id}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
+                  <User className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{[job.customer.firstName, job.customer.lastName].filter(Boolean).join(" ") || job.customer.companyName}</span>
+                  <ChevronRight className="w-3 h-3" />
+                </Link>
+              )}
+              {job.scheduledStart && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="w-4 h-4 flex-shrink-0" />
+                  <span>{formatDateTime(job.scheduledStart)}</span>
+                </div>
+              )}
+              {job.property && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{job.property.streetAddress}, {job.property.suburb}</span>
+                </div>
+              )}
+              {job.leadTechnician && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Wrench className="w-4 h-4 flex-shrink-0" />
+                  <span>{job.leadTechnician.firstName} {job.leadTechnician.lastName}</span>
+                  {job.leadTechnician.phone && (
+                    <a href={`tel:${job.leadTechnician.phone}`} className="hover:text-foreground">
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {job.quote && (
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">From quote:</span>
+                <Link href={`/quotes/${job.quote.id}`} className="text-primary hover:underline flex items-center gap-0.5">
+                  {job.quote.quoteNumber} ({formatCurrency(job.quote.totalCents)})
+                  <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: "Labour Time", value: totalLabourMins > 0 ? `${Math.floor(totalLabourMins / 60)}h ${Math.round(totalLabourMins % 60)}m` : "—", icon: Clock },
+            { label: "Checklist", value: totalItems > 0 ? `${completedItems}/${totalItems}` : "—", icon: CheckSquare },
+            { label: "Materials", value: formatCurrency(job.actualMaterialsCents ?? 0), icon: Package },
+            { label: "Job Total", value: formatCurrency(job.actualTotalCents ?? 0), icon: Receipt },
+          ].map(({ label, value, icon: Icon }) => (
+            <Card key={label}>
+              <CardContent className="p-4 flex items-center gap-3">
+                <Icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-lg font-bold">{value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b flex gap-0">
+          {(["overview", "tasks", "time", "materials", "photos"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium capitalize border-b-2 transition-colors",
+                activeTab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t}{t === "tasks" && tasks.length > 0 ? ` (${tasks.length})` : ""}
+              {t === "time" && timeEntries.length > 0 ? ` (${timeEntries.length})` : ""}
+              {t === "materials" && materials.length > 0 ? ` (${materials.length})` : ""}
+              {t === "photos" && photos.length > 0 ? ` (${photos.length})` : ""}
+            </button>
+          ))}
+        </div>
+
+        {/* Overview tab */}
+        {activeTab === "overview" && (
+          <div className="space-y-4">
+            {job.description && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Description</CardTitle></CardHeader>
+                <CardContent><p className="text-sm text-muted-foreground">{job.description}</p></CardContent>
+              </Card>
+            )}
+            {job.internalNotes && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Internal Notes</CardTitle></CardHeader>
+                <CardContent><p className="text-sm text-muted-foreground">{job.internalNotes}</p></CardContent>
+              </Card>
+            )}
+            {job.completionNotes && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-green-700">Completion Notes</CardTitle></CardHeader>
+                <CardContent><p className="text-sm">{job.completionNotes}</p></CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Tasks/Checklist tab */}
+        {activeTab === "tasks" && (
+          <div className="space-y-4">
+            {checklists.length === 0 && tasks.length === 0 && (
+              <Card><CardContent className="p-4 text-sm text-muted-foreground">No checklists or tasks.</CardContent></Card>
+            )}
+            {checklists.map((cl: any) => (
+              <Card key={cl.id}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4" /> {cl.name}
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {cl.items?.filter((i: any) => i.checked).length}/{cl.items?.length ?? 0}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  {(cl.items ?? []).map((item: any) => (
+                    <div key={item.id} className="flex items-start gap-3 py-2 border-b last:border-0">
+                      <input
+                        type="checkbox"
+                        checked={item.checked}
+                        onChange={(e) => checklistMutation.mutate({ itemId: item.id, checked: e.target.checked })}
+                        className="mt-0.5 w-4 h-4 accent-primary cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-sm", item.checked && "line-through text-muted-foreground")}>{item.label}</p>
+                        {item.notes && <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>}
+                      </div>
+                      {item.isRequired && !item.checked && (
+                        <Badge className="bg-orange-100 text-orange-700 text-xs">Required</Badge>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Time entries tab */}
+        {activeTab === "time" && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <p className="text-sm font-medium">Time Entries ({timeEntries.length})</p>
+                <p className="text-sm text-muted-foreground">
+                  Total: {Math.floor(totalLabourMins / 60)}h {Math.round(totalLabourMins % 60)}m
+                </p>
+              </div>
+              {timeEntries.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">No time entries yet. Start the job to begin tracking.</p>
+              ) : (
+                timeEntries.map((te: any) => {
+                  const mins = te.endedAt
+                    ? (new Date(te.endedAt).getTime() - new Date(te.startedAt).getTime()) / 60000
+                    : null;
+                  return (
+                    <div key={te.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-0">
+                      <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{te.user?.firstName} {te.user?.lastName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateTime(te.startedAt)} → {te.endedAt ? formatDateTime(te.endedAt) : "In progress"}
+                        </p>
+                      </div>
+                      {mins !== null && (
+                        <span className="text-sm font-medium flex-shrink-0">
+                          {Math.floor(mins / 60)}h {Math.round(mins % 60)}m
+                        </span>
+                      )}
+                      {!te.endedAt && (
+                        <Badge className="bg-green-100 text-green-700 text-xs">Active</Badge>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Materials tab */}
+        {activeTab === "materials" && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <p className="text-sm font-medium">Materials Used</p>
+                <p className="text-sm font-semibold">{formatCurrency(job.actualMaterialsCents ?? 0)}</p>
+              </div>
+              {materials.map((m: any) => (
+                <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-0">
+                  <Package className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{m.name}</p>
+                    {m.supplier && <p className="text-xs text-muted-foreground">{m.supplier}</p>}
+                  </div>
+                  <div className="text-right text-sm flex-shrink-0">
+                    <p>{m.quantity} {m.unit ?? "ea"}</p>
+                    {m.unitCostCents > 0 && <p className="text-muted-foreground">{formatCurrency(m.unitCostCents * m.quantity)}</p>}
+                  </div>
+                </div>
+              ))}
+
+              {/* Add material form */}
+              <div className="p-4 border-t bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Add Material</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Material name"
+                    value={newMaterial.name}
+                    onChange={(e) => setNewMaterial((p) => ({ ...p, name: e.target.value }))}
+                    className="col-span-3 lg:col-span-1 px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Qty"
+                    min="1"
+                    value={newMaterial.quantity}
+                    onChange={(e) => setNewMaterial((p) => ({ ...p, quantity: Number(e.target.value) }))}
+                    className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      value={(newMaterial.unitCostCents / 100).toFixed(2)}
+                      onChange={(e) => setNewMaterial((p) => ({ ...p, unitCostCents: Math.round(Number(e.target.value) * 100) }))}
+                      className="w-full pl-6 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => addMaterialMutation.mutate()}
+                  disabled={!newMaterial.name || addMaterialMutation.isPending}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Photos tab */}
+        {activeTab === "photos" && (
+          <Card>
+            <CardContent className="p-4">
+              {photos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Camera className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No photos yet.</p>
+                  <p className="text-xs mt-1">Photos are uploaded from the mobile field app.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {photos.map((p: any) => (
+                    <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer">
+                      <div className="aspect-square rounded-lg overflow-hidden bg-muted border hover:opacity-90 transition-opacity">
+                        <img src={p.url} alt={p.caption ?? "Job photo"} className="w-full h-full object-cover" />
+                      </div>
+                      {p.caption && <p className="text-xs text-muted-foreground mt-1 truncate">{p.caption}</p>}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

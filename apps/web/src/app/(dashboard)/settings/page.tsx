@@ -1,0 +1,609 @@
+"use client";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { Topbar } from "@/components/layout/topbar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
+import { toast } from "@/hooks/use-toast";
+import { cn, initials } from "@/lib/utils";
+import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2 } from "lucide-react";
+
+const TABS = [
+  { id: "profile",   label: "Profile",     icon: User },
+  { id: "business",  label: "Business",    icon: Building2 },
+  { id: "documents", label: "Documents",   icon: Settings2 },
+  { id: "pipeline",  label: "Pipeline",    icon: GitBranch },
+  { id: "users",     label: "Team",        icon: Users },
+  { id: "billing",   label: "Billing",     icon: CreditCard },
+  { id: "integrations", label: "Integrations", icon: Plug },
+];
+
+/* ─── Profile ─── */
+function ProfileTab() {
+  const user = useAuthStore((s) => s.user);
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm({
+    defaultValues: { firstName: user?.firstName ?? "", lastName: user?.lastName ?? "", phone: user?.phone ?? "" },
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => api.patch("/auth/me", data),
+    onSuccess: () => toast({ title: "Profile updated" }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Profile</CardTitle>
+        <CardDescription>Your personal information</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 rounded-full bg-brand-500 text-white text-2xl font-bold flex items-center justify-center">
+            {user ? initials(user.firstName, user.lastName) : "?"}
+          </div>
+        </div>
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>First name</Label>
+              <Input {...register("firstName")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Last name</Label>
+              <Input {...register("lastName")} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input value={user?.email ?? ""} disabled className="opacity-60" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Phone</Label>
+            <Input {...register("phone")} placeholder="+61 4xx xxx xxx" />
+          </div>
+          <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save changes</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Business ─── */
+function BusinessTab() {
+  const qc = useQueryClient();
+  const { data: tenantData } = useQuery({
+    queryKey: ["tenant"],
+    queryFn: () => api.get<any>("/tenant"),
+  });
+  const tenant = tenantData?.data;
+
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm({
+    values: tenant ? {
+      businessName: tenant.businessName ?? "",
+      phone: tenant.phone ?? "",
+      abn: tenant.abn ?? "",
+      streetAddress: tenant.streetAddress ?? "",
+      suburb: tenant.suburb ?? "",
+      state: tenant.state ?? "",
+      postcode: tenant.postcode ?? "",
+      timezone: tenant.timezone ?? "Australia/Sydney",
+    } : undefined,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => api.patch("/tenant", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tenant"] }); toast({ title: "Business details updated" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Business Details</CardTitle>
+        <CardDescription>Shown on quotes and invoices</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Business name</Label>
+            <Input {...register("businessName")} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input {...register("phone")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>ABN / Tax Number</Label>
+              <Input {...register("abn")} placeholder="12 345 678 901" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Street address</Label>
+            <Input {...register("streetAddress")} />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label>Suburb</Label>
+              <Input {...register("suburb")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>State</Label>
+              <Input {...register("state")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Postcode</Label>
+              <Input {...register("postcode")} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Timezone</Label>
+            <select {...register("timezone")} className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+              <option value="Australia/Melbourne">Australia/Melbourne</option>
+              <option value="Australia/Brisbane">Australia/Brisbane</option>
+              <option value="Australia/Perth">Australia/Perth</option>
+              <option value="Australia/Adelaide">Australia/Adelaide</option>
+              <option value="Pacific/Auckland">Pacific/Auckland (NZST)</option>
+            </select>
+          </div>
+          <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save changes</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Documents (Invoice & Quote settings) ─── */
+function DocumentsTab() {
+  const qc = useQueryClient();
+  const { data: tenantData } = useQuery({
+    queryKey: ["tenant"],
+    queryFn: () => api.get<any>("/tenant"),
+  });
+  const settings = tenantData?.data?.settings;
+
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm({
+    values: settings ? {
+      invoicePrefix: settings.invoicePrefix ?? "INV",
+      invoicePaymentTerms: settings.invoicePaymentTerms ?? 14,
+      invoiceFooterText: settings.invoiceFooterText ?? "",
+      quotePrefix: settings.quotePrefix ?? "QT",
+      quoteValidityDays: settings.quoteValidityDays ?? 30,
+      quoteDepositPercent: settings.quoteDepositPercent ?? 0,
+      quoteTermsConditions: settings.quoteTermsConditions ?? "",
+      requireCustomerSignoff: settings.requireCustomerSignoff ?? false,
+      notifyNewLeadEmail: settings.notifyNewLeadEmail ?? true,
+      notifyNewLeadSms: settings.notifyNewLeadSms ?? false,
+      autoSendReviewRequest: settings.autoSendReviewRequest ?? false,
+      reviewRequestDelayHours: settings.reviewRequestDelayHours ?? 24,
+    } : undefined,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => api.patch("/tenant/settings", {
+      ...data,
+      invoicePaymentTerms: Number(data.invoicePaymentTerms),
+      quoteValidityDays: Number(data.quoteValidityDays),
+      quoteDepositPercent: Number(data.quoteDepositPercent),
+      reviewRequestDelayHours: Number(data.reviewRequestDelayHours),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tenant"] }); toast({ title: "Settings saved" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
+      <Card>
+        <CardHeader><CardTitle className="text-base">Invoices</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Invoice number prefix</Label>
+              <Input {...register("invoicePrefix")} placeholder="INV" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Default payment terms (days)</Label>
+              <Input type="number" {...register("invoicePaymentTerms")} min="0" max="365" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Invoice footer / bank details</Label>
+            <textarea
+              {...register("invoiceFooterText")}
+              rows={3}
+              placeholder="Bank: ANZ&#10;BSB: 012-345&#10;Account: 123456789"
+              className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Quotes</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Quote number prefix</Label>
+              <Input {...register("quotePrefix")} placeholder="QT" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Default validity (days)</Label>
+              <Input type="number" {...register("quoteValidityDays")} min="1" max="365" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Default deposit %</Label>
+            <Input type="number" {...register("quoteDepositPercent")} min="0" max="100" step="5" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Default terms & conditions</Label>
+            <textarea
+              {...register("quoteTermsConditions")}
+              rows={4}
+              placeholder="Standard terms…"
+              className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("requireCustomerSignoff")} className="rounded" />
+            Require customer digital signature on quotes
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Notifications & Automations</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyNewLeadEmail")} className="rounded" />
+            Email me when a new lead comes in
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyNewLeadSms")} className="rounded" />
+            SMS me when a new lead comes in
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("autoSendReviewRequest")} className="rounded" />
+            Automatically request a review after job completion
+          </label>
+          <div className="space-y-1.5">
+            <Label>Review request delay (hours after completion)</Label>
+            <Input type="number" {...register("reviewRequestDelayHours")} min="0" max="168" className="max-w-xs" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save all settings</Button>
+    </form>
+  );
+}
+
+/* ─── Pipeline Stages ─── */
+function PipelineTab() {
+  const qc = useQueryClient();
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#3B82F6");
+
+  const { data } = useQuery({
+    queryKey: ["pipeline-stages"],
+    queryFn: () => api.get<any>("/tenant/pipeline-stages"),
+  });
+  const stages: any[] = data?.data ?? [];
+
+  const createMutation = useMutation({
+    mutationFn: () => api.post("/tenant/pipeline-stages", {
+      name: newName, color: newColor, position: stages.length,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipeline-stages"] });
+      setNewName("");
+      toast({ title: "Stage added" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Pipeline Stages</CardTitle>
+        <CardDescription>Customise your sales pipeline columns</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="divide-y">
+          {stages.map((s: any, i: number) => (
+            <div key={s.id} className="flex items-center gap-3 py-3">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: s.color ?? "#6B7280" }} />
+              <span className="text-sm font-medium flex-1">{s.name}</span>
+              <span className="text-xs text-muted-foreground">{s.slaHours ? `${s.slaHours}h SLA` : ""}</span>
+              <span className="text-xs text-muted-foreground">Position {i + 1}</span>
+            </div>
+          ))}
+        </div>
+        <div className="border-t pt-4">
+          <p className="text-sm font-medium mb-3">Add new stage</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+              className="w-9 h-9 rounded cursor-pointer border"
+            />
+            <Input
+              placeholder="Stage name (e.g. Proposal Sent)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={!newName || createMutation.isPending}
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Team ─── */
+function TeamTab() {
+  const qc = useQueryClient();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", role: "technician" });
+
+  const { data: usersData } = useQuery({
+    queryKey: ["tenant-users"],
+    queryFn: () => api.get<any>("/tenant/users"),
+  });
+  const users: any[] = usersData?.data ?? [];
+
+  const inviteMutation = useMutation({
+    mutationFn: () => api.post("/tenant/users/invite", form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-users"] });
+      setInviteOpen(false);
+      setForm({ firstName: "", lastName: "", email: "", phone: "", role: "technician" });
+      toast({ title: "User invited!" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const ROLE_COLOR: Record<string, string> = {
+    owner: "bg-purple-100 text-purple-800",
+    admin: "bg-blue-100 text-blue-800",
+    manager: "bg-green-100 text-green-800",
+    technician: "bg-yellow-100 text-yellow-800",
+    sales: "bg-orange-100 text-orange-800",
+    viewer: "bg-gray-100 text-gray-600",
+  };
+
+  const canInvite = form.firstName && form.lastName && form.email;
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardTitle>Team Members</CardTitle>
+            <CardDescription>{users.length} user{users.length !== 1 ? "s" : ""}</CardDescription>
+          </div>
+          <Button size="sm" onClick={() => setInviteOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Invite user
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="divide-y">
+            {users.map((u: any) => (
+              <div key={u.id} className="flex items-center gap-3 py-3">
+                <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                  {initials(u.firstName, u.lastName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{u.firstName} {u.lastName}</p>
+                  <p className="text-xs text-muted-foreground">{u.email}</p>
+                </div>
+                <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLOR[u.role] ?? "bg-gray-100")}>
+                  {u.role}
+                </span>
+                <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium",
+                  u.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600")}>
+                  {u.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {inviteOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="font-semibold text-lg">Invite Team Member</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">First Name *</label>
+                <Input
+                  autoFocus
+                  value={form.firstName}
+                  onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+                  className="mt-0.5"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Last Name *</label>
+                <Input
+                  value={form.lastName}
+                  onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                  className="mt-0.5"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Email *</label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                className="mt-0.5"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Phone</label>
+              <Input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                className="mt-0.5"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Role</label>
+              <select
+                value={form.role}
+                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                className="w-full mt-0.5 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="technician">Technician</option>
+                <option value="sales">Sales</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer (read-only)</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
+              <Button onClick={() => inviteMutation.mutate()} disabled={!canInvite || inviteMutation.isPending}>
+                {inviteMutation.isPending ? "Inviting…" : "Send Invite"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─── Integrations ─── */
+function IntegrationsTab() {
+  const { data: connections } = useQuery({
+    queryKey: ["integrations"],
+    queryFn: () => api.get<any[]>("/integrations"),
+  });
+
+  const integrations = [
+    { id: "xero",     name: "Xero",     description: "Sync invoices and contacts to Xero accounting",         logo: "X" },
+    { id: "myob",     name: "MYOB",     description: "Sync to MYOB AccountRight or Essentials",               logo: "M" },
+    { id: "stripe",   name: "Stripe",   description: "Accept card payments online on quotes and invoices",    logo: "S" },
+    { id: "windcave", name: "Windcave", description: "NZ payment gateway for card processing",                logo: "W" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {integrations.map((integration) => {
+        const conn = connections?.find?.((c: any) => c.provider === integration.id);
+        return (
+          <Card key={integration.id}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted font-bold flex items-center justify-center text-sm flex-shrink-0">
+                    {integration.logo}
+                  </div>
+                  <div>
+                    <p className="font-medium">{integration.name}</p>
+                    <p className="text-sm text-muted-foreground">{integration.description}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {conn?.isActive ? (
+                    <>
+                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
+                      </span>
+                      <Button size="sm" variant="outline">Settings</Button>
+                    </>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => toast({ title: "Coming soon", description: `${integration.name} integration is in progress` })}>
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── Page ─── */
+export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState("profile");
+
+  return (
+    <div>
+      <Topbar title="Settings" />
+
+      <div className="flex gap-6 p-4 lg:p-6">
+        {/* Sidebar nav */}
+        <div className="w-48 flex-shrink-0 hidden md:block">
+          <nav className="space-y-1">
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={cn("w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors",
+                  activeTab === id
+                    ? "bg-primary text-white"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                {label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Mobile select */}
+        <div className="md:hidden w-full mb-4">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {TABS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {activeTab === "profile"      && <ProfileTab />}
+          {activeTab === "business"     && <BusinessTab />}
+          {activeTab === "documents"    && <DocumentsTab />}
+          {activeTab === "pipeline"     && <PipelineTab />}
+          {activeTab === "users"        && <TeamTab />}
+          {activeTab === "billing"      && (
+            <Card>
+              <CardHeader><CardTitle>Billing & Subscription</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Billing management coming soon. Contact support to change your plan.</p>
+              </CardContent>
+            </Card>
+          )}
+          {activeTab === "integrations" && <IntegrationsTab />}
+        </div>
+      </div>
+    </div>
+  );
+}

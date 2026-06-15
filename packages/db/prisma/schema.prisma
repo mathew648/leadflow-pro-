@@ -1,0 +1,1381 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp"), pg_trgm, unaccent]
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum SubscriptionTier {
+  starter
+  growth
+  pro
+  enterprise
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  cancelled
+  paused
+}
+
+enum UserRole {
+  owner
+  admin
+  manager
+  technician
+  sales
+  viewer
+}
+
+enum UserStatus {
+  active
+  inactive
+  invited
+}
+
+enum LeadSource {
+  meta_ads
+  google_ads
+  tiktok_ads
+  linkedin_ads
+  website
+  landing_page
+  whatsapp
+  messenger
+  email
+  sms
+  manual
+  phone
+  referral
+  walk_in
+}
+
+enum Urgency {
+  emergency
+  urgent
+  normal
+  flexible
+}
+
+enum LeadStatus {
+  active
+  converted
+  lost
+  duplicate
+  spam
+}
+
+enum PropertyType {
+  residential
+  commercial
+  industrial
+  strata
+}
+
+enum QuoteStatus {
+  draft
+  sent
+  viewed
+  approved
+  rejected
+  changes_requested
+  expired
+  converted
+}
+
+enum JobStatus {
+  pending
+  scheduled
+  dispatched
+  in_progress
+  on_hold
+  completed
+  cancelled
+  invoiced
+}
+
+enum JobPriority {
+  emergency
+  high
+  normal
+  low
+}
+
+enum InvoiceType {
+  deposit
+  progress
+  final
+  recurring
+  credit_note
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  viewed
+  partial
+  paid
+  overdue
+  cancelled
+  written_off
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum PaymentGateway {
+  stripe
+  windcave
+  paypal
+  manual
+}
+
+enum MessageChannel {
+  sms
+  email
+  whatsapp
+  messenger
+  internal
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+}
+
+enum WorkflowTriggerType {
+  lead_created
+  lead_stage_changed
+  lead_assigned
+  quote_sent
+  quote_viewed
+  quote_approved
+  quote_rejected
+  job_created
+  job_started
+  job_completed
+  invoice_sent
+  invoice_paid
+  invoice_overdue
+  scheduled
+  manual
+}
+
+// ============================================================
+// TENANTS
+// ============================================================
+
+model Tenant {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String   @unique @db.VarChar(100)
+  businessName  String   @db.VarChar(200) @map("business_name")
+  abn           String?  @db.VarChar(20)
+  nzbn          String?  @db.VarChar(20)
+  email         String   @db.VarChar(255)
+  phone         String?  @db.VarChar(30)
+  websiteUrl    String?  @db.VarChar(500) @map("website_url")
+
+  streetAddress String?  @db.VarChar(200) @map("street_address")
+  suburb        String?  @db.VarChar(100)
+  city          String?  @db.VarChar(100)
+  state         String?  @db.VarChar(50)
+  postcode      String?  @db.VarChar(10)
+  country       String   @default("AU") @db.Char(2)
+  latitude      Decimal? @db.Decimal(10, 8)
+  longitude     Decimal? @db.Decimal(11, 8)
+
+  tradeTypes    String[] @map("trade_types")
+  timezone      String   @default("Australia/Sydney")
+  currency      String   @default("AUD") @db.Char(3)
+  dateFormat    String   @default("DD/MM/YYYY") @map("date_format")
+
+  logoUrl         String?  @db.VarChar(500) @map("logo_url")
+  primaryColor    String?  @db.Char(7) @map("primary_color")
+  secondaryColor  String?  @db.Char(7) @map("secondary_color")
+
+  gstRegistered   Boolean  @default(true) @map("gst_registered")
+  gstRate         Decimal  @default(0.10) @db.Decimal(5, 4) @map("gst_rate")
+  taxNumber       String?  @db.VarChar(50) @map("tax_number")
+
+  subscriptionStatus  SubscriptionStatus  @default(trialing) @map("subscription_status")
+  trialEndsAt         DateTime?           @map("trial_ends_at")
+  onboardedAt         DateTime?           @map("onboarded_at")
+  onboardingStep      String?             @db.VarChar(50) @map("onboarding_step")
+  stripeAccountId     String?             @db.VarChar(200) @map("stripe_account_id")
+  status              String              @default("active") @db.VarChar(20)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  // Relations
+  settings        TenantSettings?
+  subscription    Subscription?
+  users           User[]
+  pipelineStages  PipelineStage[]
+  leads           Lead[]
+  contacts        Contact[]
+  customers       Customer[]
+  properties      Property[]
+  catalogItems    CatalogItem[]
+  catalogCategories CatalogCategory[]
+  quotes          Quote[]
+  jobs            Job[]
+  invoices        Invoice[]
+  payments        Payment[]
+  messages        Message[]
+  automations     AutomationWorkflow[]
+  accountingConnections AccountingConnection[]
+  leadSources     LeadSourceConfig[]
+  auditLogs       AuditLog[]
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @unique @db.Uuid @map("tenant_id")
+
+  businessHours         Json    @default("{\"monday\":{\"open\":\"08:00\",\"close\":\"17:00\",\"enabled\":true},\"tuesday\":{\"open\":\"08:00\",\"close\":\"17:00\",\"enabled\":true},\"wednesday\":{\"open\":\"08:00\",\"close\":\"17:00\",\"enabled\":true},\"thursday\":{\"open\":\"08:00\",\"close\":\"17:00\",\"enabled\":true},\"friday\":{\"open\":\"08:00\",\"close\":\"17:00\",\"enabled\":true},\"saturday\":{\"open\":\"08:00\",\"close\":\"12:00\",\"enabled\":false},\"sunday\":{\"open\":null,\"close\":null,\"enabled\":false}}") @map("business_hours")
+  invoicePrefix         String  @default("INV") @db.VarChar(20) @map("invoice_prefix")
+  invoiceNextNumber     Int     @default(1001) @map("invoice_next_number")
+  invoicePaymentTerms   Int     @default(14) @map("invoice_payment_terms")
+  invoiceFooterText     String? @map("invoice_footer_text")
+  invoiceBankDetails    Json?   @map("invoice_bank_details")
+  quotePrefix           String  @default("QTE") @db.VarChar(20) @map("quote_prefix")
+  quoteNextNumber       Int     @default(1001) @map("quote_next_number")
+  quoteValidityDays     Int     @default(30) @map("quote_validity_days")
+  quoteTermsConditions  String? @map("quote_terms_conditions")
+  quoteDepositPercent   Decimal @default(30) @db.Decimal(5, 2) @map("quote_deposit_percent")
+  jobPrefix             String  @default("JOB") @db.VarChar(20) @map("job_prefix")
+  jobNextNumber         Int     @default(1001) @map("job_next_number")
+  requireCustomerSignoff Boolean @default(true) @map("require_customer_signoff")
+  notifyNewLeadEmail    Boolean @default(true) @map("notify_new_lead_email")
+  notifyNewLeadSms      Boolean @default(true) @map("notify_new_lead_sms")
+  notifyQuoteViewed     Boolean @default(true) @map("notify_quote_viewed")
+  notifyQuoteApproved   Boolean @default(true) @map("notify_quote_approved")
+  notifyPaymentReceived Boolean @default(true) @map("notify_payment_received")
+  leadAssignmentStrategy String @default("round_robin") @db.VarChar(50) @map("lead_assignment_strategy")
+  defaultLeadAssigneeId  String? @db.Uuid @map("default_lead_assignee_id")
+  autoSendReviewRequest Boolean @default(true) @map("auto_send_review_request")
+  reviewRequestDelayHours Int   @default(2) @map("review_request_delay_hours")
+  googlePlaceId         String? @db.VarChar(200) @map("google_place_id")
+  facebookPageId        String? @db.VarChar(100) @map("facebook_page_id")
+  xeroTenantId          String? @db.VarChar(100) @map("xero_tenant_id")
+  stripeAccountId       String? @db.VarChar(100) @map("stripe_account_id")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_settings")
+}
+
+// ============================================================
+// SUBSCRIPTIONS
+// ============================================================
+
+model Subscription {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String             @unique @db.Uuid @map("tenant_id")
+  tier      SubscriptionTier
+  status    SubscriptionStatus
+
+  billingCycle       String  @default("monthly") @db.VarChar(20) @map("billing_cycle")
+  basePriceCents     Int     @map("base_price_cents")
+  userCount          Int     @default(1) @map("user_count")
+  userPriceCents     Int     @default(0) @map("user_price_cents")
+  maxUsers           Int     @default(1) @map("max_users")
+  maxLeadsPerMonth   Int     @default(500) @map("max_leads_per_month")
+  storageGb          Int     @default(5) @map("storage_gb")
+
+  stripeSubscriptionId String? @db.VarChar(200) @map("stripe_subscription_id")
+  stripeCustomerId     String? @db.VarChar(200) @map("stripe_customer_id")
+
+  currentPeriodStart DateTime? @map("current_period_start")
+  currentPeriodEnd   DateTime? @map("current_period_end")
+  trialEnd           DateTime? @map("trial_end")
+  cancelledAt        DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("subscriptions")
+}
+
+// ============================================================
+// USERS
+// ============================================================
+
+model User {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String     @db.Uuid @map("tenant_id")
+  email     String     @db.VarChar(255)
+  firstName String     @db.VarChar(100) @map("first_name")
+  lastName  String     @db.VarChar(100) @map("last_name")
+  phone     String?    @db.VarChar(30)
+  avatarUrl String?    @db.VarChar(500) @map("avatar_url")
+  role      UserRole   @default(technician)
+  permissions Json     @default("{}") @db.JsonB
+
+  tradeTypes      String[] @map("trade_types")
+  licenceNumber   String?  @db.VarChar(100) @map("licence_number")
+  licenceExpiry   DateTime? @map("licence_expiry")
+  skills          String[]
+
+  hourlyRateCents  Int?    @map("hourly_rate_cents")
+  employmentType   String? @db.VarChar(30) @map("employment_type")
+
+  passwordHash  String?  @db.VarChar(255) @map("password_hash")
+  mfaEnabled    Boolean  @default(false) @map("mfa_enabled")
+  mfaSecret     String?  @db.VarChar(100) @map("mfa_secret")
+
+  lastLoginAt   DateTime? @map("last_login_at")
+  lastLoginIp   String?   @db.VarChar(45) @map("last_login_ip")
+
+  pushTokenIos      String? @db.VarChar(500) @map("push_token_ios")
+  pushTokenAndroid  String? @db.VarChar(500) @map("push_token_android")
+
+  status       UserStatus @default(invited)
+  invitedAt    DateTime?  @map("invited_at")
+  activatedAt  DateTime?  @map("activated_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  assignedLeads     Lead[]     @relation("AssignedLeads")
+  assignedCustomers Customer[] @relation("AssignedCustomers")
+  assignedJobs      Job[]      @relation("LeadTechnician")
+  timeEntries     TimeEntry[]
+  createdLeads    Lead[]        @relation("CreatedLeads")
+  createdQuotes   Quote[]       @relation("CreatedQuotes")
+  createdJobs     Job[]         @relation("CreatedJobs")
+  locationPings   LocationPing[]
+  auditLogs       AuditLog[]
+
+  @@unique([email, tenantId])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// PIPELINE & LEADS
+// ============================================================
+
+model PipelineStage {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @db.Uuid @map("tenant_id")
+  name      String  @db.VarChar(100)
+  slug      String  @db.VarChar(50)
+  color     String? @db.Char(7)
+  position  Int
+  isDefault Boolean @default(false) @map("is_default")
+  isWon     Boolean @default(false) @map("is_won")
+  isLost    Boolean @default(false) @map("is_lost")
+  slaHours  Int?    @map("sla_hours")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  leads     Lead[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("pipeline_stages")
+}
+
+model Lead {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String     @db.Uuid @map("tenant_id")
+  leadNumber  String?    @db.VarChar(20) @map("lead_number")
+
+  firstName   String     @db.VarChar(100) @map("first_name")
+  lastName    String?    @db.VarChar(100) @map("last_name")
+  email       String?    @db.VarChar(255)
+  phone       String?    @db.VarChar(30)
+  companyName String?    @db.VarChar(200) @map("company_name")
+
+  source            LeadSource
+  sourceDetail      String?    @db.VarChar(200) @map("source_detail")
+  sourceCampaignId  String?    @db.VarChar(200) @map("source_campaign_id")
+  sourceAdId        String?    @db.VarChar(200) @map("source_ad_id")
+  sourceFormId      String?    @db.VarChar(200) @map("source_form_id")
+  utmSource         String?    @db.VarChar(100) @map("utm_source")
+  utmMedium         String?    @db.VarChar(100) @map("utm_medium")
+  utmCampaign       String?    @db.VarChar(100) @map("utm_campaign")
+  utmContent        String?    @db.VarChar(100) @map("utm_content")
+  utmTerm           String?    @db.VarChar(100) @map("utm_term")
+  referrerCustomerId String?   @db.Uuid @map("referrer_customer_id")
+
+  serviceRequired   String?    @map("service_required")
+  serviceCategory   String?    @db.VarChar(50) @map("service_category")
+  propertyAddress   String?    @db.VarChar(300) @map("property_address")
+  suburb            String?    @db.VarChar(100)
+  postcode          String?    @db.VarChar(10)
+  latitude          Decimal?   @db.Decimal(10, 8)
+  longitude         Decimal?   @db.Decimal(11, 8)
+  propertyType      PropertyType? @map("property_type")
+  urgency           Urgency    @default(normal)
+  estimatedValueCents Int?     @map("estimated_value_cents")
+  preferredStartDate DateTime? @map("preferred_start_date")
+  notes             String?
+
+  stageId         String?    @db.Uuid @map("stage_id")
+  stageChangedAt  DateTime   @default(now()) @map("stage_changed_at")
+  assignedToId    String?    @db.Uuid @map("assigned_to_id")
+  assignedAt      DateTime?  @map("assigned_at")
+
+  aiScore               Int?     @map("ai_score")
+  aiCloseProbability    Decimal? @db.Decimal(5, 4) @map("ai_close_probability")
+  aiEstimatedValueCents Int?     @map("ai_estimated_value_cents")
+  aiNextAction          String?  @map("ai_next_action")
+  aiScoredAt            DateTime? @map("ai_scored_at")
+
+  status               LeadStatus @default(active)
+  lostReason           String?    @db.VarChar(200) @map("lost_reason")
+  convertedToCustomerId String?   @db.Uuid @map("converted_to_customer_id")
+  convertedAt          DateTime?  @map("converted_at")
+
+  rawPayload    Json     @default("{}") @db.JsonB @map("raw_payload")
+  customFields  Json     @default("{}") @db.JsonB @map("custom_fields")
+  tags          String[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  stage       PipelineStage? @relation(fields: [stageId], references: [id])
+  assignedTo  User?         @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  createdBy   User?         @relation("CreatedLeads", fields: [createdById], references: [id])
+  activities  LeadActivity[]
+  quotes      Quote[]
+
+  @@index([tenantId, stageId])
+  @@index([tenantId, status])
+  @@index([phone, tenantId])
+  @@index([email, tenantId])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("leads")
+}
+
+model LeadActivity {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @db.Uuid @map("tenant_id")
+  leadId      String   @db.Uuid @map("lead_id")
+  type        String   @db.VarChar(50)
+  description String?
+  metadata    Json     @default("{}") @db.JsonB
+  userId      String?  @db.Uuid @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt(sort: Desc)])
+  @@map("lead_activities")
+}
+
+// ============================================================
+// CONTACTS
+// ============================================================
+
+model Contact {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @db.Uuid @map("tenant_id")
+
+  firstName   String  @db.VarChar(100) @map("first_name")
+  lastName    String? @db.VarChar(100) @map("last_name")
+  email       String? @db.VarChar(255)
+  phone       String? @db.VarChar(30)
+  mobile      String? @db.VarChar(30)
+  jobTitle    String? @db.VarChar(100) @map("job_title")
+  customerId  String? @db.Uuid @map("customer_id")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId])
+  @@map("contacts")
+}
+
+// ============================================================
+// CUSTOMERS & PROPERTIES
+// ============================================================
+
+model Customer {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @db.Uuid @map("tenant_id")
+  customerNumber String? @db.VarChar(20) @map("customer_number")
+  type        String @default("residential") @db.VarChar(20)
+
+  firstName   String? @db.VarChar(100) @map("first_name")
+  lastName    String? @db.VarChar(100) @map("last_name")
+  companyName String? @db.VarChar(200) @map("company_name")
+  email       String? @db.VarChar(255)
+  phone       String? @db.VarChar(30)
+  mobile      String? @db.VarChar(30)
+
+  billingStreet   String? @db.VarChar(200) @map("billing_street")
+  billingSuburb   String? @db.VarChar(100) @map("billing_suburb")
+  billingCity     String? @db.VarChar(100) @map("billing_city")
+  billingState    String? @db.VarChar(50) @map("billing_state")
+  billingPostcode String? @db.VarChar(10) @map("billing_postcode")
+  billingCountry  String  @default("AU") @db.Char(2) @map("billing_country")
+
+  sourceLeadId   String? @db.Uuid @map("source_lead_id")
+  assignedToId   String? @db.Uuid @map("assigned_to_id")
+  tags           String[]
+
+  preferredContactMethod  String? @db.VarChar(20) @map("preferred_contact_method")
+  communicationOptOut     Boolean @default(false) @map("communication_opt_out")
+  marketingOptIn          Boolean @default(true) @map("marketing_opt_in")
+
+  creditLimitCents    Int? @map("credit_limit_cents")
+  paymentTermsDays    Int  @default(14) @map("payment_terms_days")
+
+  xeroContactId String? @db.VarChar(200) @map("xero_contact_id")
+  myobCardId    String? @db.VarChar(200) @map("myob_card_id")
+
+  internalNotes  String? @map("internal_notes")
+  customFields   Json    @default("{}") @db.JsonB @map("custom_fields")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  assignedTo  User?       @relation("AssignedCustomers", fields: [assignedToId], references: [id])
+  properties  Property[]
+  contacts    Contact[]
+  quotes      Quote[]
+  jobs        Job[]
+  invoices    Invoice[]
+  payments    Payment[]
+  messages    Message[]
+
+  @@index([tenantId])
+  @@index([email, tenantId])
+  @@index([phone, tenantId])
+  @@map("customers")
+}
+
+model Property {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @db.Uuid @map("tenant_id")
+  customerId  String @db.Uuid @map("customer_id")
+  nickname    String? @db.VarChar(100)
+
+  streetAddress String  @db.VarChar(200) @map("street_address")
+  suburb        String? @db.VarChar(100)
+  city          String? @db.VarChar(100)
+  state         String? @db.VarChar(50)
+  postcode      String? @db.VarChar(10)
+  country       String  @default("AU") @db.Char(2)
+  latitude      Decimal? @db.Decimal(10, 8)
+  longitude     Decimal? @db.Decimal(11, 8)
+
+  propertyType PropertyType? @map("property_type")
+  ownerType    String?       @db.VarChar(30) @map("owner_type")
+  bedrooms     Int?
+  bathrooms    Int?
+  stories      Int?
+  roofType     String? @db.VarChar(50) @map("roof_type")
+  yearBuilt    Int?    @map("year_built")
+
+  accessNotes    String? @map("access_notes")
+  accessPhotoUrl String? @db.VarChar(500) @map("access_photo_url")
+  compliance     Json    @default("[]") @db.JsonB
+  notes          String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer  @relation(fields: [customerId], references: [id])
+  quotes   Quote[]
+  jobs     Job[]
+
+  @@index([customerId])
+  @@index([tenantId])
+  @@map("properties")
+}
+
+// ============================================================
+// CATALOG
+// ============================================================
+
+model CatalogCategory {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @db.Uuid @map("tenant_id")
+  name      String  @db.VarChar(100)
+  parentId  String? @db.Uuid @map("parent_id")
+  position  Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  parent      CatalogCategory? @relation("CategoryTree", fields: [parentId], references: [id])
+  children    CatalogCategory[] @relation("CategoryTree")
+  catalogItems CatalogItem[]
+
+  @@index([tenantId])
+  @@map("catalog_categories")
+}
+
+model CatalogItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @db.Uuid @map("tenant_id")
+  categoryId  String? @db.Uuid @map("category_id")
+
+  code        String? @db.VarChar(50)
+  name        String  @db.VarChar(200)
+  description String?
+  type        String  @db.VarChar(30)
+  unit        String  @db.VarChar(30)
+
+  costPriceCents  Int     @default(0) @map("cost_price_cents")
+  sellPriceCents  Int     @map("sell_price_cents")
+  marginPercent   Decimal? @db.Decimal(5, 2) @map("margin_percent")
+
+  gstApplicable Boolean @default(true) @map("gst_applicable")
+  gstRate       Decimal @default(0.10) @db.Decimal(5, 4) @map("gst_rate")
+  discountable  Boolean @default(true)
+  maxDiscountPercent Decimal @default(20) @db.Decimal(5, 2) @map("max_discount_percent")
+
+  trackInventory  Boolean  @default(false) @map("track_inventory")
+  stockOnHand     Decimal? @db.Decimal(10, 3) @map("stock_on_hand")
+  reorderPoint    Decimal? @db.Decimal(10, 3) @map("reorder_point")
+
+  xeroAccountCode String? @db.VarChar(50) @map("xero_account_code")
+  pricingRules    Json    @default("[]") @db.JsonB @map("pricing_rules")
+  active          Boolean @default(true)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  category CatalogCategory? @relation(fields: [categoryId], references: [id])
+  quoteLineItems    QuoteLineItem[]
+  invoiceLineItems  InvoiceLineItem[]
+  jobMaterials      JobMaterial[]
+
+  @@index([tenantId])
+  @@map("catalog_items")
+}
+
+// ============================================================
+// QUOTES
+// ============================================================
+
+model Quote {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String      @db.Uuid @map("tenant_id")
+  quoteNumber String      @db.VarChar(30) @map("quote_number")
+
+  leadId      String?     @db.Uuid @map("lead_id")
+  customerId  String      @db.Uuid @map("customer_id")
+  propertyId  String?     @db.Uuid @map("property_id")
+
+  title       String      @db.VarChar(300)
+  description String?
+  internalNotes String?   @map("internal_notes")
+
+  subtotalCents   Int     @default(0) @map("subtotal_cents")
+  discountCents   Int     @default(0) @map("discount_cents")
+  gstCents        Int     @default(0) @map("gst_cents")
+  totalCents      Int     @default(0) @map("total_cents")
+  depositPercent  Decimal @default(0) @db.Decimal(5, 2) @map("deposit_percent")
+  depositCents    Int     @default(0) @map("deposit_cents")
+
+  paymentTermsDays  Int     @default(14) @map("payment_terms_days")
+  paymentTermsText  String? @map("payment_terms_text")
+  validUntil        DateTime? @map("valid_until")
+
+  status      QuoteStatus @default(draft)
+  portalToken String?     @unique @db.VarChar(100) @map("portal_token")
+  portalUrl   String?     @db.VarChar(500) @map("portal_url")
+
+  sentAt        DateTime? @map("sent_at")
+  firstViewedAt DateTime? @map("first_viewed_at")
+  lastViewedAt  DateTime? @map("last_viewed_at")
+  viewCount     Int       @default(0) @map("view_count")
+  approvedAt    DateTime? @map("approved_at")
+  rejectedAt    DateTime? @map("rejected_at")
+  rejectionReason String? @map("rejection_reason")
+
+  approvedByName  String? @db.VarChar(200) @map("approved_by_name")
+  approvedByIp    String? @db.VarChar(45) @map("approved_by_ip")
+  signatureUrl    String? @db.VarChar(500) @map("signature_url")
+
+  convertedToJobId String? @db.Uuid @map("converted_to_job_id")
+  termsConditions  String? @map("terms_conditions")
+  pdfUrl           String? @db.VarChar(500) @map("pdf_url")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  lead       Lead?           @relation(fields: [leadId], references: [id])
+  customer   Customer        @relation(fields: [customerId], references: [id])
+  property   Property?       @relation(fields: [propertyId], references: [id])
+  createdBy  User?           @relation("CreatedQuotes", fields: [createdById], references: [id])
+  lineItems  QuoteLineItem[]
+  job        Job?
+
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@map("quotes")
+}
+
+model QuoteLineItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @db.Uuid @map("tenant_id")
+  quoteId     String  @db.Uuid @map("quote_id")
+
+  position      Int
+  section       String? @db.VarChar(100)
+  isOptional    Boolean @default(false) @map("is_optional")
+  isSelected    Boolean @default(true) @map("is_selected")
+
+  catalogItemId String? @db.Uuid @map("catalog_item_id")
+  description   String  @db.VarChar(500)
+  notes         String?
+  unit          String? @db.VarChar(30)
+
+  quantity        Decimal @db.Decimal(10, 3)
+  unitPriceCents  Int     @map("unit_price_cents")
+  discountPercent Decimal @default(0) @db.Decimal(5, 2) @map("discount_percent")
+  discountCents   Int     @default(0) @map("discount_cents")
+  subtotalCents   Int     @map("subtotal_cents")
+  gstRate         Decimal @default(0.10) @db.Decimal(5, 4) @map("gst_rate")
+  gstCents        Int     @map("gst_cents")
+  totalCents      Int     @map("total_cents")
+  costPriceCents  Int     @default(0) @map("cost_price_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  quote      Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id])
+
+  @@index([quoteId])
+  @@map("quote_line_items")
+}
+
+// ============================================================
+// JOBS
+// ============================================================
+
+model Job {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @db.Uuid @map("tenant_id")
+  jobNumber   String    @db.VarChar(30) @map("job_number")
+
+  quoteId     String?   @unique @db.Uuid @map("quote_id")
+  customerId  String    @db.Uuid @map("customer_id")
+  propertyId  String?   @db.Uuid @map("property_id")
+
+  title           String      @db.VarChar(300)
+  description     String?
+  internalNotes   String?     @map("internal_notes")
+  customerNotes   String?     @map("customer_notes")
+  tradeCategory   String?     @db.VarChar(50) @map("trade_category")
+  jobType         String?     @db.VarChar(50) @map("job_type")
+  priority        JobPriority @default(normal)
+
+  scheduledStart  DateTime?   @map("scheduled_start")
+  scheduledEnd    DateTime?   @map("scheduled_end")
+  actualStart     DateTime?   @map("actual_start")
+  actualEnd       DateTime?   @map("actual_end")
+  estimatedHours  Decimal?    @db.Decimal(5, 2) @map("estimated_hours")
+
+  status            JobStatus @default(pending)
+  assignedUserIds   String[]  @db.Uuid @map("assigned_user_ids")
+  leadTechnicianId  String?   @db.Uuid @map("lead_technician_id")
+
+  quotedAmountCents    Int @default(0) @map("quoted_amount_cents")
+  actualLabourCents    Int @default(0) @map("actual_labour_cents")
+  actualMaterialsCents Int @default(0) @map("actual_materials_cents")
+  actualTotalCents     Int @default(0) @map("actual_total_cents")
+
+  customerSignoffAt   DateTime? @map("customer_signoff_at")
+  customerSignoffName String?   @db.VarChar(200) @map("customer_signoff_name")
+  customerSignoffUrl  String?   @db.VarChar(500) @map("customer_signoff_url")
+  customerSatisfaction Int?     @map("customer_satisfaction")
+
+  invoiceId       String?   @db.Uuid @map("invoice_id")
+  completionNotes String?   @map("completion_notes")
+  completedAt     DateTime? @map("completed_at")
+  completedById   String?   @db.Uuid @map("completed_by_id")
+
+  customFields    Json      @default("{}") @db.JsonB @map("custom_fields")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  quote           Quote?        @relation(fields: [quoteId], references: [id])
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  property        Property?     @relation(fields: [propertyId], references: [id])
+  leadTechnician  User?         @relation("LeadTechnician", fields: [leadTechnicianId], references: [id])
+  createdBy       User?         @relation("CreatedJobs", fields: [createdById], references: [id])
+  invoice         Invoice?      @relation("InvoiceJob")
+  tasks           JobTask[]
+  checklists      JobChecklist[]
+  timeEntries     TimeEntry[]
+  materials       JobMaterial[]
+  photos          JobPhoto[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledStart])
+  @@index([customerId])
+  @@map("jobs")
+}
+
+model JobTask {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @db.Uuid @map("tenant_id")
+  jobId       String  @db.Uuid @map("job_id")
+
+  title         String  @db.VarChar(300)
+  description   String?
+  position      Int
+  assignedToId  String? @db.Uuid @map("assigned_to_id")
+  dueAt         DateTime? @map("due_at")
+  status        String  @default("pending") @db.VarChar(20)
+  completedAt   DateTime? @map("completed_at")
+  completedById String?   @db.Uuid @map("completed_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("job_tasks")
+}
+
+model JobChecklist {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @db.Uuid @map("tenant_id")
+  jobId     String @db.Uuid @map("job_id")
+  name      String @db.VarChar(100)
+  type      String @default("custom") @db.VarChar(30)
+  position  Int    @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job   Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  items JobChecklistItem[]
+
+  @@index([jobId])
+  @@map("job_checklists")
+}
+
+model JobChecklistItem {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  checklistId  String  @db.Uuid @map("checklist_id")
+  tenantId     String  @db.Uuid @map("tenant_id")
+  label        String  @db.VarChar(300)
+  isRequired   Boolean @default(false) @map("is_required")
+  position     Int
+  checked      Boolean @default(false)
+  checkedAt    DateTime? @map("checked_at")
+  checkedById  String?   @db.Uuid @map("checked_by_id")
+  notes        String?
+  photoUrl     String? @db.VarChar(500) @map("photo_url")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  checklist   JobChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId])
+  @@map("job_checklist_items")
+}
+
+model TimeEntry {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @db.Uuid @map("tenant_id")
+  jobId     String  @db.Uuid @map("job_id")
+  userId    String  @db.Uuid @map("user_id")
+
+  type            String    @default("standard") @db.VarChar(20)
+  startedAt       DateTime  @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  durationMinutes Int?      @map("duration_minutes")
+
+  startLatitude   Decimal? @db.Decimal(10, 8) @map("start_latitude")
+  startLongitude  Decimal? @db.Decimal(11, 8) @map("start_longitude")
+  endLatitude     Decimal? @db.Decimal(10, 8) @map("end_latitude")
+  endLongitude    Decimal? @db.Decimal(11, 8) @map("end_longitude")
+
+  billable          Boolean @default(true)
+  hourlyRateCents   Int?    @map("hourly_rate_cents")
+  totalCents        Int?    @map("total_cents")
+  notes             String?
+  approvedById      String? @db.Uuid @map("approved_by_id")
+  approvedAt        DateTime? @map("approved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  job  Job  @relation(fields: [jobId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([jobId])
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("time_entries")
+}
+
+model JobMaterial {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @db.Uuid @map("tenant_id")
+  jobId       String  @db.Uuid @map("job_id")
+  catalogItemId String? @db.Uuid @map("catalog_item_id")
+
+  name            String  @db.VarChar(200)
+  code            String? @db.VarChar(50)
+  unit            String? @db.VarChar(30)
+  quantity        Decimal @db.Decimal(10, 3)
+  unitCostCents   Int     @default(0) @map("unit_cost_cents")
+  unitPriceCents  Int     @map("unit_price_cents")
+  totalCostCents  Int     @default(0) @map("total_cost_cents")
+  totalPriceCents Int     @map("total_price_cents")
+
+  addedFrom   String  @default("field") @db.VarChar(30) @map("added_from")
+  addedById   String? @db.Uuid @map("added_by_id")
+  billable    Boolean @default(true)
+  notes       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  job         Job          @relation(fields: [jobId], references: [id])
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id])
+
+  @@index([jobId])
+  @@map("job_materials")
+}
+
+model JobPhoto {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @db.Uuid @map("tenant_id")
+  jobId     String @db.Uuid @map("job_id")
+
+  type              String   @db.VarChar(20)
+  url               String   @db.VarChar(500)
+  thumbnailUrl      String?  @db.VarChar(500) @map("thumbnail_url")
+  filename          String?  @db.VarChar(200)
+  fileSize          Int?     @map("file_size")
+  mimeType          String?  @db.VarChar(50) @map("mime_type")
+  caption           String?
+  isCustomerVisible Boolean  @default(true) @map("is_customer_visible")
+  locationLatitude  Decimal? @db.Decimal(10, 8) @map("location_latitude")
+  locationLongitude Decimal? @db.Decimal(11, 8) @map("location_longitude")
+  takenAt           DateTime @default(now()) @map("taken_at")
+  takenById         String?  @db.Uuid @map("taken_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  job       Job      @relation(fields: [jobId], references: [id])
+
+  @@index([jobId, type])
+  @@map("job_photos")
+}
+
+// ============================================================
+// INVOICES & PAYMENTS
+// ============================================================
+
+model Invoice {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @db.Uuid @map("tenant_id")
+  invoiceNumber String      @db.VarChar(30) @map("invoice_number")
+
+  jobId       String? @unique @db.Uuid @map("job_id")
+  quoteId     String? @db.Uuid @map("quote_id")
+  customerId  String  @db.Uuid @map("customer_id")
+  propertyId  String? @db.Uuid @map("property_id")
+
+  invoiceType   InvoiceType   @default(final) @map("invoice_type")
+
+  subtotalCents   Int @default(0) @map("subtotal_cents")
+  discountCents   Int @default(0) @map("discount_cents")
+  gstCents        Int @default(0) @map("gst_cents")
+  totalCents      Int @default(0) @map("total_cents")
+  amountPaidCents Int @default(0) @map("amount_paid_cents")
+  amountDueCents  Int @default(0) @map("amount_due_cents")
+  currency        String @default("AUD") @db.Char(3)
+
+  issueDate DateTime @default(now()) @map("issue_date")
+  dueDate   DateTime @map("due_date")
+  sentAt    DateTime? @map("sent_at")
+
+  status      InvoiceStatus @default(draft)
+  portalToken String?       @unique @db.VarChar(100) @map("portal_token")
+
+  firstViewedAt DateTime? @map("first_viewed_at")
+  lastPaymentAt DateTime? @map("last_payment_at")
+
+  stripePaymentIntentId   String? @db.VarChar(200) @map("stripe_payment_intent_id")
+  stripeCheckoutSessionId String? @db.VarChar(200) @map("stripe_checkout_session_id")
+  paymentLink             String? @db.VarChar(500) @map("payment_link")
+  pdfUrl                  String? @db.VarChar(500) @map("pdf_url")
+
+  reminder1SentAt DateTime? @map("reminder_1_sent_at")
+  reminder2SentAt DateTime? @map("reminder_2_sent_at")
+  reminder3SentAt DateTime? @map("reminder_3_sent_at")
+
+  customerNotes   String? @map("customer_notes")
+  internalNotes   String? @map("internal_notes")
+
+  xeroInvoiceId       String?   @db.VarChar(200) @map("xero_invoice_id")
+  accountingSyncedAt  DateTime? @map("accounting_synced_at")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  customer  Customer        @relation(fields: [customerId], references: [id])
+  job       Job?            @relation("InvoiceJob", fields: [jobId], references: [id])
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@index([tenantId, dueDate])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @db.Uuid @map("tenant_id")
+  invoiceId   String @db.Uuid @map("invoice_id")
+
+  position        Int
+  description     String @db.VarChar(500)
+  notes           String?
+  unit            String? @db.VarChar(30)
+  catalogItemId   String? @db.Uuid @map("catalog_item_id")
+
+  quantity        Decimal @db.Decimal(10, 3)
+  unitPriceCents  Int     @map("unit_price_cents")
+  discountPercent Decimal @default(0) @db.Decimal(5, 2) @map("discount_percent")
+  discountCents   Int     @default(0) @map("discount_cents")
+  subtotalCents   Int     @map("subtotal_cents")
+  gstRate         Decimal @default(0.10) @db.Decimal(5, 4) @map("gst_rate")
+  gstCents        Int     @map("gst_cents")
+  totalCents      Int     @map("total_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice     Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+model Payment {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String        @db.Uuid @map("tenant_id")
+  invoiceId   String        @db.Uuid @map("invoice_id")
+  customerId  String        @db.Uuid @map("customer_id")
+
+  amountCents   Int    @map("amount_cents")
+  currency      String @default("AUD") @db.Char(3)
+  paymentMethod String? @db.VarChar(30) @map("payment_method")
+  paymentGateway PaymentGateway? @map("payment_gateway")
+
+  gatewayTransactionId String? @db.VarChar(200) @map("gateway_transaction_id")
+  gatewayResponse      Json?   @db.JsonB @map("gateway_response")
+
+  status  PaymentStatus @default(pending)
+  paidAt  DateTime?     @map("paid_at")
+  notes   String?
+
+  xeroPaymentId       String?   @db.VarChar(200) @map("xero_payment_id")
+  accountingSyncedAt  DateTime? @map("accounting_synced_at")
+
+  platformFeeCents  Int @default(0) @map("platform_fee_cents")
+  gatewayFeeCents   Int @default(0) @map("gateway_fee_cents")
+  netAmountCents    Int? @map("net_amount_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([invoiceId])
+  @@index([tenantId, paidAt(sort: Desc)])
+  @@map("payments")
+}
+
+// ============================================================
+// SCHEDULING
+// ============================================================
+
+model LocationPing {
+  id        BigInt   @id @default(autoincrement())
+  tenantId  String   @db.Uuid @map("tenant_id")
+  userId    String   @db.Uuid @map("user_id")
+  jobId     String?  @db.Uuid @map("job_id")
+
+  latitude    Decimal @db.Decimal(10, 8)
+  longitude   Decimal @db.Decimal(11, 8)
+  accuracy    Decimal? @db.Decimal(6, 2)
+  heading     Decimal? @db.Decimal(5, 2)
+  speed       Decimal? @db.Decimal(6, 2)
+
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, recordedAt(sort: Desc)])
+  @@index([tenantId, recordedAt(sort: Desc)])
+  @@map("location_pings")
+}
+
+// ============================================================
+// COMMUNICATIONS
+// ============================================================
+
+model Message {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String         @db.Uuid @map("tenant_id")
+  channel   MessageChannel
+  direction MessageDirection
+
+  fromNumber  String? @db.VarChar(30) @map("from_number")
+  toNumber    String? @db.VarChar(30) @map("to_number")
+  fromEmail   String? @db.VarChar(255) @map("from_email")
+  toEmail     String? @db.VarChar(255) @map("to_email")
+
+  subject     String? @db.VarChar(500)
+  body        String
+
+  leadId      String? @db.Uuid @map("lead_id")
+  customerId  String? @db.Uuid @map("customer_id")
+  jobId       String? @db.Uuid @map("job_id")
+  invoiceId   String? @db.Uuid @map("invoice_id")
+
+  templateId    String? @db.Uuid @map("template_id")
+  templateVars  Json    @default("{}") @db.JsonB @map("template_vars")
+
+  status              String    @default("sent") @db.VarChar(20)
+  sentAt              DateTime  @default(now()) @map("sent_at")
+  deliveredAt         DateTime? @map("delivered_at")
+  readAt              DateTime? @map("read_at")
+  gatewayMessageId    String?   @db.VarChar(200) @map("gateway_message_id")
+  costCents           Int       @default(0) @map("cost_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([leadId, createdAt(sort: Desc)])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+// ============================================================
+// AUTOMATIONS
+// ============================================================
+
+model AutomationWorkflow {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @db.Uuid @map("tenant_id")
+  name        String  @db.VarChar(200)
+  description String?
+  isActive    Boolean @default(false) @map("is_active")
+  isSystem    Boolean @default(false) @map("is_system")
+
+  triggerType   WorkflowTriggerType @map("trigger_type")
+  triggerConfig Json                @default("{}") @db.JsonB @map("trigger_config")
+
+  totalRuns  Int       @default(0) @map("total_runs")
+  lastRunAt  DateTime? @map("last_run_at")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id])
+  steps       WorkflowStep[]
+  executions  WorkflowExecution[]
+
+  @@index([tenantId])
+  @@map("automation_workflows")
+}
+
+model WorkflowStep {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId  String @db.Uuid @map("workflow_id")
+  tenantId    String @db.Uuid @map("tenant_id")
+  position    Int
+  type        String @db.VarChar(30)
+  config      Json   @default("{}") @db.JsonB
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  workflow   AutomationWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@map("workflow_steps")
+}
+
+model WorkflowExecution {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @db.Uuid @map("tenant_id")
+  workflowId  String @db.Uuid @map("workflow_id")
+
+  triggerEntityType  String? @db.VarChar(30) @map("trigger_entity_type")
+  triggerEntityId    String? @db.Uuid @map("trigger_entity_id")
+
+  status        String    @default("running") @db.VarChar(20)
+  currentStep   Int       @default(0) @map("current_step")
+  totalSteps    Int?      @map("total_steps")
+  startedAt     DateTime  @default(now()) @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  nextStepAt    DateTime? @map("next_step_at")
+  errorMessage  String?   @map("error_message")
+  stepLog       Json      @default("[]") @db.JsonB @map("step_log")
+
+  workflow AutomationWorkflow @relation(fields: [workflowId], references: [id])
+
+  @@index([workflowId])
+  @@index([nextStepAt])
+  @@map("workflow_executions")
+}
+
+// ============================================================
+// ACCOUNTING
+// ============================================================
+
+model AccountingConnection {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @db.Uuid @map("tenant_id")
+
+  provider    String @db.VarChar(20)
+  status      String @default("active") @db.VarChar(20)
+
+  accessToken     String?   @map("access_token")
+  refreshToken    String?   @map("refresh_token")
+  tokenExpiresAt  DateTime? @map("token_expires_at")
+
+  providerOrgId   String? @db.VarChar(200) @map("provider_org_id")
+  providerOrgName String? @db.VarChar(200) @map("provider_org_name")
+
+  syncCustomers Boolean @default(true) @map("sync_customers")
+  syncInvoices  Boolean @default(true) @map("sync_invoices")
+  syncPayments  Boolean @default(true) @map("sync_payments")
+  syncItems     Boolean @default(false) @map("sync_items")
+
+  lastSyncAt     DateTime? @map("last_sync_at")
+  lastSyncStatus String?   @db.VarChar(20) @map("last_sync_status")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, provider])
+  @@map("accounting_connections")
+}
+
+// ============================================================
+// LEAD SOURCE CONFIG
+// ============================================================
+
+model LeadSourceConfig {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String     @db.Uuid @map("tenant_id")
+  source      LeadSource
+  isActive    Boolean    @default(false) @map("is_active")
+  config      Json       @default("{}") @db.JsonB
+  webhookUrl  String?    @db.VarChar(500) @map("webhook_url")
+  lastEventAt DateTime?  @map("last_event_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, source])
+  @@map("lead_source_configs")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @db.Uuid @map("tenant_id")
+
+  actorId    String   @db.Uuid @map("actor_id")
+  actorEmail String   @db.VarChar(255) @map("actor_email")
+  actorRole  String   @db.VarChar(30) @map("actor_role")
+
+  action     String   @db.VarChar(50)
+  entityType String   @db.VarChar(50) @map("entity_type")
+  entityId   String?  @db.VarChar(50) @map("entity_id")
+
+  changes    Json?    @db.JsonB
+  metadata   Json     @default("{}") @db.JsonB
+
+  ipAddress  String?  @db.VarChar(45) @map("ip_address")
+  userAgent  String?  @db.VarChar(500) @map("user_agent")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  actor      User     @relation(fields: [actorId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, actorId])
+  @@map("audit_logs")
+}
