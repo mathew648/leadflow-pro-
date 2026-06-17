@@ -34,7 +34,7 @@ function AcceptInviteInner() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (password.length < 12) { toast({ title: "Password must be at least 12 characters", variant: "destructive" }); return; }
+    if (password.length < 8) { toast({ title: "Password must be at least 8 characters", variant: "destructive" }); return; }
     if (password !== confirm) { toast({ title: "Passwords don't match", variant: "destructive" }); return; }
     setSubmitting(true);
     try {
@@ -85,7 +85,7 @@ function AcceptInviteInner() {
                     type={showPass ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="At least 12 characters"
+                    placeholder="At least 8 characters"
                   />
                   <button type="button" onClick={() => setShowPass((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

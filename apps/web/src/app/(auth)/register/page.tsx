@@ -23,7 +23,7 @@ const schema = z.object({
   firstName: z.string().min(1, "Required"),
   lastName: z.string().min(1, "Required"),
   email: z.string().email("Invalid email"),
-  password: z.string().min(12, "Minimum 12 characters"),
+  password: z.string().min(8, "At least 8 characters"),
   businessName: z.string().min(1, "Required"),
   abn: z.string().optional(),
   phone: z.string().optional(),
@@ -196,7 +196,7 @@ export default function RegisterPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Password</Label>
-                  <Input type="password" placeholder="Min 12 characters" {...register("password")} />
+                  <Input type="password" placeholder="At least 8 characters" {...register("password")} />
                   {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
