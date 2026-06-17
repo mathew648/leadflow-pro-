@@ -2,7 +2,7 @@
 // - Only cache-first for content-hashed static assets (/_next/static, /icons) — safe forever.
 // - Navigations are network-first with an offline fallback (always fresh HTML).
 // - API and non-GET requests are never touched.
-const STATIC_CACHE = "lfp-static-v1";
+const STATIC_CACHE = "tradiejet-static-v2";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
