@@ -456,19 +456,18 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         entityData: { customerId: job.customerId, customerPhone: job.customer.phone },
       });
 
-      // Schedule review request (default 2 hours)
+      // Schedule a Google review request after completion (default 2 hours).
       const settings = await prisma.tenantSettings.findUnique({
         where: { tenantId: request.tenantId },
       });
-      if (settings?.autoSendReviewRequest && job.customer.phone) {
+      const hasReviewLink = Boolean(settings?.googleReviewUrl || settings?.googlePlaceId);
+      const canContact = Boolean(job.customer.email || job.customer.phone);
+      if (settings?.autoSendReviewRequest && hasReviewLink && canContact) {
         const delayMs = (settings.reviewRequestDelayHours ?? 2) * 60 * 60 * 1000;
-        await enqueueDelayed(QUEUES.SMS, "review-request", {
+        await enqueueDelayed(QUEUES.NOTIFICATIONS, "review-request", {
           tenantId: request.tenantId,
           customerId: job.customerId,
           jobId: id,
-          phone: job.customer.phone,
-          customerName: job.customer.firstName,
-          googlePlaceId: settings.googlePlaceId,
         }, delayMs);
       }
 

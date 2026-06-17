@@ -267,6 +267,7 @@ function DocumentsTab() {
       notifyPaymentReceived: settings.notifyPaymentReceived ?? true,
       autoSendReviewRequest: settings.autoSendReviewRequest ?? false,
       reviewRequestDelayHours: settings.reviewRequestDelayHours ?? 24,
+      googleReviewUrl: settings.googleReviewUrl ?? "",
     } : undefined,
   });
 
@@ -372,6 +373,13 @@ function DocumentsTab() {
           <div className="space-y-1.5">
             <Label>Review request delay (hours after completion)</Label>
             <Input type="number" {...register("reviewRequestDelayHours")} min="0" max="168" className="max-w-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Google review link</Label>
+            <Input {...register("googleReviewUrl")} placeholder="https://g.page/r/your-review-link" />
+            <p className="text-xs text-muted-foreground">
+              From your Google Business Profile → &ldquo;Get more reviews&rdquo; → copy the link. Needed for review requests to send.
+            </p>
           </div>
         </CardContent>
       </Card>
