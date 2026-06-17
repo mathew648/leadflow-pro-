@@ -5,6 +5,7 @@ import { generatePortalToken, calculateLineItem, calculateTotals } from "../lib/
 import { enqueueAutomation, enqueueEmail, enqueuePdf, QUEUES, enqueueDelayed } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
+import { notifyBusiness } from "../lib/notify.js";
 import { config } from "../config.js";
 
 export default async function invoicesRoutes(fastify: FastifyInstance) {
@@ -374,6 +375,11 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
           entityId: id,
         });
       }
+
+      notifyBusiness(request.tenantId, "payment_received", {
+        summary: `Payment of <b>$${(actualAmount / 100).toFixed(2)}</b> recorded for invoice ${invoice.invoiceNumber}${newStatus === "paid" ? " (now fully paid)" : ""}.`,
+        link: `/invoices/${id}`,
+      }).catch(() => {});
 
       // Email the customer a payment receipt (logged to Message history)
       if (invoice.customer.email) {

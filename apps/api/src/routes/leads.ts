@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { normalisePhone, generateNumber, encodeCursor, decodeCursor } from "../lib/utils.js";
 import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
+import { notifyBusiness } from "../lib/notify.js";
 
 const createLeadSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -289,6 +290,12 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       await enqueueAIScoring({ tenantId, leadId: lead.id });
 
       auditFromRequest(request, "create", "lead", lead.id).catch(() => {});
+
+      notifyBusiness(tenantId, "new_lead", {
+        summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via ${lead.source})`,
+        link: `/leads/${lead.id}`,
+        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via ${lead.source}. Open LeadFlow Pro.`,
+      }).catch(() => {});
 
       return reply.status(201).send({ data: lead });
     }

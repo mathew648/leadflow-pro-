@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { enqueueAutomation } from "../lib/queue.js";
+import { notifyBusiness } from "../lib/notify.js";
 import { config } from "../config.js";
 import Stripe from "stripe";
 
@@ -102,6 +103,11 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
               entityType: "lead",
               entityId: lead.id,
             });
+            notifyBusiness(tenantId, "new_lead", {
+              summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b> (via Meta Ads)`,
+              link: `/leads/${lead.id}`,
+              sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Meta Ads. Open LeadFlow Pro.`,
+            }).catch(() => {});
           });
         } catch (err) {
           fastify.log.error({ err, leadgenId }, "Failed to fetch Meta lead data");
@@ -169,6 +175,11 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
                   },
                 }),
               ]);
+
+              notifyBusiness(tenantId, "payment_received", {
+                summary: `Payment of <b>$${(amountCents / 100).toFixed(2)}</b> received for invoice ${invoice.invoiceNumber}.`,
+                link: `/invoices/${invoiceId}`,
+              }).catch(() => {});
 
               if (newAmountDue <= 0) {
                 await enqueueAutomation({
