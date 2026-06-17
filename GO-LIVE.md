@@ -40,14 +40,22 @@ Step-by-step to take the platform live. Keep this file for every future deploy.
    | `JWT_SECRET` | (see top of this file) |
    | `ENCRYPTION_KEY` | (see top of this file) |
    | `PLATFORM_ADMIN_EMAILS` | `mathew@webmaniacs.co.nz` |
+   | `APP_URL` | your web URL, e.g. `https://leadflow-pro-web.onrender.com` |
+   | `API_URL` | your **api** URL **incl. any suffix**, e.g. `https://leadflow-pro-api-37bj.onrender.com` |
+
+   > ⚠️ `API_URL` must be the API service's real URL (with the `-xxxx` suffix Render adds). The
+   > website form / Google / Meta webhook URLs are built from it — if it's wrong, those links break.
 
    Click **Save Changes** → the API restarts.
 
    **Optional (add only when you want that feature):**
-   - `RESEND_API_KEY` — real outgoing emails (from resend.com)
+   - `RESEND_API_KEY` — real outgoing emails (from resend.com; also verify a sending domain)
    - `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` — card payments / paid signups
-   - `XERO_CLIENT_ID` + `XERO_CLIENT_SECRET` + `XERO_REDIRECT_URI` — Xero sync
-   - `MYOB_CLIENT_ID` + `MYOB_CLIENT_SECRET` + `MYOB_REDIRECT_URI` + `MYOB_API_KEY` — MYOB sync
+   - `ABR_GUID` — Australian ABN auto-lookup at signup (free, abr.business.gov.au)
+   - `NZBN_API_KEY` — New Zealand NZBN auto-lookup at signup
+   - `XERO_CLIENT_ID` + `XERO_CLIENT_SECRET` + `XERO_REDIRECT_URI` — Xero sync + import
+   - `MYOB_CLIENT_ID` + `MYOB_CLIENT_SECRET` + `MYOB_REDIRECT_URI` + `MYOB_API_KEY` — MYOB sync + import
+   - `META_APP_ID` + `META_APP_SECRET` + `META_VERIFY_TOKEN` + `META_REDIRECT_URI` — Meta lead ads (see META-SETUP.md)
 
 ---
 
