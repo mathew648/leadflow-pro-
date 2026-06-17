@@ -464,6 +464,7 @@ function TeamTab() {
   const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", role: "technician" });
+  const [inviteLink, setInviteLink] = useState<{ url: string; emailSent: boolean } | null>(null);
 
   const { data: usersData } = useQuery({
     queryKey: ["tenant-users"],
@@ -472,12 +473,14 @@ function TeamTab() {
   const users: any[] = usersData?.data ?? [];
 
   const inviteMutation = useMutation({
-    mutationFn: () => api.post("/tenant/users/invite", form),
-    onSuccess: () => {
+    mutationFn: () => api.post<any>("/tenant/users/invite", form),
+    onSuccess: (res: any) => {
+      const d = res?.data ?? res;
       qc.invalidateQueries({ queryKey: ["tenant-users"] });
       setInviteOpen(false);
       setForm({ firstName: "", lastName: "", email: "", phone: "", role: "technician" });
-      toast({ title: "User invited!" });
+      if (d?.acceptUrl) setInviteLink({ url: d.acceptUrl, emailSent: Boolean(d.emailSent) });
+      toast({ title: d?.emailSent ? "Invite emailed!" : "Invite created — share the link below" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -528,6 +531,23 @@ function TeamTab() {
           </div>
         </CardContent>
       </Card>
+
+      {inviteLink && (
+        <Card className="border-brand-200 bg-brand-50/40">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium">
+              {inviteLink.emailSent ? "✅ Invite email sent. You can also share this link:" : "Share this invite link with your teammate:"}
+            </p>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs bg-white border rounded-md px-3 py-2 overflow-x-auto">{inviteLink.url}</code>
+              <Button type="button" variant="outline" size="sm" onClick={() => { navigator.clipboard?.writeText(inviteLink.url); toast({ title: "Invite link copied" }); }}>
+                <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">They&apos;ll set their password and join your team. Link expires in 7 days.</p>
+          </CardContent>
+        </Card>
+      )}
 
       {inviteOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

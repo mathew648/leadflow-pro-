@@ -55,6 +55,21 @@ export async function register(body: {
   return data;
 }
 
+export interface InviteInfo { firstName: string; lastName: string; email: string; role: string; businessName: string; }
+
+export async function getInvite(token: string): Promise<InviteInfo> {
+  return api.get<InviteInfo>(`/auth/accept-invite?token=${encodeURIComponent(token)}`);
+}
+
+export async function acceptInvite(token: string, password: string): Promise<{ accessToken: string; user: AuthUser }> {
+  const data = await api.post<{ accessToken: string; expiresIn: number; user: AuthUser }>(
+    "/auth/accept-invite",
+    { token, password }
+  );
+  setToken(data.accessToken);
+  return data;
+}
+
 export async function logout(): Promise<void> {
   try {
     await api.post("/auth/logout");

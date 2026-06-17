@@ -353,6 +353,95 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/v1/auth/accept-invite?token= — validate an invite + return who it's for (for the accept page).
+  fastify.get("/auth/accept-invite", async (request, reply) => {
+    const { token } = z.object({ token: z.string().min(10) }).parse(request.query);
+    let payload: any;
+    try { payload = fastify.jwt.verify(token); } catch {
+      return reply.status(410).send({ error: { code: "INVITE_INVALID", message: "This invite link is invalid or has expired." } });
+    }
+    if (payload?.purpose !== "invite") {
+      return reply.status(400).send({ error: { code: "INVITE_INVALID", message: "Invalid invite link." } });
+    }
+    const user = await prisma.user.findFirst({
+      where: { id: payload.sub, tenantId: payload.tid, deletedAt: null },
+      include: { tenant: { select: { businessName: true } } },
+    });
+    if (!user) return reply.status(404).send({ error: { code: "INVITE_INVALID", message: "Invite not found." } });
+    if (user.status === "active" || user.passwordHash) {
+      return reply.status(409).send({ error: { code: "ALREADY_ACCEPTED", message: "This invite was already accepted — please sign in." } });
+    }
+    return { data: { firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, businessName: user.tenant.businessName } };
+  });
+
+  // POST /api/v1/auth/accept-invite — set password, activate, and log the new teammate in.
+  fastify.post("/auth/accept-invite", async (request, reply) => {
+    const body = z.object({ token: z.string().min(10), password: z.string().min(12).max(200) }).parse(request.body);
+    let payload: any;
+    try { payload = fastify.jwt.verify(body.token); } catch {
+      return reply.status(410).send({ error: { code: "INVITE_INVALID", message: "This invite link is invalid or has expired." } });
+    }
+    if (payload?.purpose !== "invite") {
+      return reply.status(400).send({ error: { code: "INVITE_INVALID", message: "Invalid invite link." } });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { id: payload.sub, tenantId: payload.tid, deletedAt: null },
+      include: { tenant: { include: { subscription: true } } },
+    });
+    if (!user) return reply.status(404).send({ error: { code: "INVITE_INVALID", message: "Invite not found." } });
+    if (user.status === "active" || user.passwordHash) {
+      return reply.status(409).send({ error: { code: "ALREADY_ACCEPTED", message: "This invite was already accepted — please sign in." } });
+    }
+
+    const passwordHash = await bcrypt.hash(body.password, 12);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, status: "active", activatedAt: new Date(), lastLoginAt: new Date(), lastLoginIp: request.ip },
+    });
+
+    const accessToken = fastify.jwt.sign({
+      sub: user.id, tid: user.tenantId, email: user.email, role: user.role,
+      name: `${user.firstName} ${user.lastName}`,
+    });
+    const refreshToken = fastify.jwt.sign(
+      { sub: user.id, type: "refresh", jti: nanoid() } as any,
+      { expiresIn: config.JWT_REFRESH_EXPIRY }
+    );
+    await prisma.refreshToken.create({
+      data: { userId: user.id, token: refreshToken, expiresAt: new Date(Date.now() + config.JWT_REFRESH_EXPIRY * 1000) },
+    });
+
+    writeAuditLog({
+      tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, actorRole: user.role,
+      action: "create", entityType: "user", entityId: user.id,
+      ipAddress: request.ip, userAgent: request.headers["user-agent"],
+    }).catch(() => {});
+
+    reply.setCookie("refreshToken", refreshToken, {
+      httpOnly: true, secure: config.NODE_ENV === "production", sameSite: "strict",
+      maxAge: config.JWT_REFRESH_EXPIRY, path: "/api/v1/auth",
+    });
+
+    return reply.status(200).send({
+      data: {
+        accessToken,
+        expiresIn: config.JWT_ACCESS_EXPIRY,
+        user: {
+          id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
+          role: user.role, avatarUrl: user.avatarUrl, isPlatformAdmin: isPlatformAdmin(user.email),
+          tenant: {
+            id: user.tenant.id, name: user.tenant.businessName, slug: user.tenant.slug,
+            subscriptionTier: user.tenant.subscription?.tier ?? "sole_trader",
+            accountType: user.tenant.accountType,
+            country: user.tenant.country, currency: user.tenant.currency,
+            logoUrl: user.tenant.logoUrl, primaryColor: user.tenant.primaryColor,
+          },
+        },
+      },
+    });
+  });
+
   // POST /api/v1/auth/refresh
   fastify.post("/auth/refresh", async (request, reply) => {
     const refreshToken =
