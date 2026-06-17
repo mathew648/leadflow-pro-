@@ -93,6 +93,43 @@ export default async function tenantsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // POST /api/v1/tenant/test-email — send a test email to the current user to verify email is configured.
+  fastify.post(
+    "/tenant/test-email",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request, reply) => {
+      const email = request.jwtUser?.email;
+      if (!email) {
+        return reply.status(400).send({ error: { code: "NO_EMAIL", message: "No email on your account" } });
+      }
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: request.tenantId },
+        select: { businessName: true, primaryColor: true, logoUrl: true },
+      });
+      try {
+        const { sendEmail } = await import("../services/email.service.js");
+        const result = await sendEmail({
+          tenantId: request.tenantId,
+          to: email,
+          subject: `Test email from ${tenant?.businessName ?? "LeadFlow Pro"}`,
+          template: "custom",
+          data: {
+            body: "✅ Your email is working! This is a test from LeadFlow Pro. Quotes, invoices and automated replies will now reach your customers.",
+            businessName: tenant?.businessName,
+            primaryColor: tenant?.primaryColor,
+            logoUrl: tenant?.logoUrl,
+          },
+        });
+        if (result.id === "skipped-no-resend-key") {
+          return { data: { sent: false, reason: "Email isn't configured yet — set RESEND_API_KEY in your hosting environment." } };
+        }
+        return { data: { sent: true, to: email } };
+      } catch (err: any) {
+        return { data: { sent: false, reason: err?.message ?? "Email send failed" } };
+      }
+    }
+  );
+
   // GET /api/v1/tenant/users
   fastify.get(
     "/tenant/users",

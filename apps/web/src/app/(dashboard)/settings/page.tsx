@@ -39,6 +39,16 @@ function ProfileTab() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const testEmail = useMutation({
+    mutationFn: () => api.post<any>("/tenant/test-email", {}),
+    onSuccess: (r: any) => {
+      const d = r?.data ?? r;
+      if (d?.sent) toast({ title: "Test email sent", description: `Check the inbox for ${d.to}` });
+      else toast({ title: "Email not sent", description: d?.reason ?? "Email isn't configured yet", variant: "destructive" });
+    },
+    onError: (e: any) => toast({ title: "Couldn't send test", description: e.message, variant: "destructive" }),
+  });
+
   return (
     <Card>
       <CardHeader>
@@ -72,6 +82,22 @@ function ProfileTab() {
           </div>
           <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save changes</Button>
         </form>
+
+        <div className="border-t pt-4">
+          <Label className="text-sm font-semibold">Email delivery</Label>
+          <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+            Send yourself a test to confirm quotes, invoices &amp; auto-replies can be emailed.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => testEmail.mutate()}
+            disabled={testEmail.isPending}
+          >
+            {testEmail.isPending ? "Sending…" : "Send test email"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
