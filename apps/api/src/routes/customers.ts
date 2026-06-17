@@ -3,6 +3,21 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { normalisePhone } from "../lib/utils.js";
 import { auditFromRequest } from "../lib/audit.js";
+import { bufferToRows, buildHeaderIndex } from "../lib/spreadsheet.js";
+
+// Flexible header aliases for customer imports (works with exports from other systems).
+const CUSTOMER_ALIASES: Record<string, string[]> = {
+  firstName: ["firstname", "first", "givenname", "fname"],
+  lastName: ["lastname", "last", "surname", "familyname", "lname"],
+  name: ["name", "fullname", "customer", "customername", "client", "contact", "contactname"],
+  company: ["company", "companyname", "business", "businessname", "organisation", "organization"],
+  email: ["email", "emailaddress", "e-mail", "emailadress"],
+  phone: ["phone", "mobile", "phonenumber", "mobilenumber", "contactnumber", "tel", "telephone"],
+  address: ["address", "street", "streetaddress", "address1", "addressline1"],
+  suburb: ["suburb", "city", "town"],
+  postcode: ["postcode", "postalcode", "zip", "zipcode", "postal"],
+  notes: ["notes", "note", "comments", "comment"],
+};
 
 const createCustomerSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -154,6 +169,80 @@ export default async function customersRoutes(fastify: FastifyInstance) {
       auditFromRequest(request, "create", "customer", customer.id).catch(() => {});
 
       return reply.status(201).send({ data: customer });
+    }
+  );
+
+  // POST /api/v1/customers/import-file — bulk-import customers from a .csv/.xlsx
+  // (e.g. a list exported from another system). Flexible column matching + dedupe.
+  fastify.post(
+    "/customers/import-file",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin", "manager"])] },
+    async (request, reply) => {
+      const file = await request.file();
+      if (!file) return reply.status(400).send({ error: { code: "NO_FILE", message: "No file uploaded" } });
+
+      let rows: string[][];
+      try {
+        rows = await bufferToRows(await file.toBuffer(), file.filename ?? "", file.mimetype ?? "");
+      } catch (err: any) {
+        return reply.status(422).send({ error: { code: "PARSE_ERROR", message: `Could not read file: ${err.message}` } });
+      }
+      if (rows.length < 2) {
+        return reply.status(422).send({ error: { code: "NO_ROWS", message: "File has a header but no data rows" } });
+      }
+
+      const tenant = await prisma.tenant.findUnique({ where: { id: request.tenantId }, select: { country: true } });
+      const idx = buildHeaderIndex(rows[0], CUSTOMER_ALIASES);
+      if (idx.name === undefined && idx.firstName === undefined && idx.company === undefined && idx.email === undefined) {
+        return reply.status(422).send({ error: { code: "NO_COLUMNS", message: "Couldn't find a name, company or email column" } });
+      }
+
+      const errors: string[] = [];
+      let imported = 0;
+      let skipped = 0;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r];
+        if (row.every((c) => (c ?? "").trim() === "")) continue;
+        const get = (f: string) => (idx[f] !== undefined ? (row[idx[f]] ?? "").trim() : "");
+
+        const fullName = get("name");
+        const firstName = get("firstName") || (fullName ? fullName.split(" ")[0] : "") || null;
+        const lastName = get("lastName") || (fullName ? fullName.split(" ").slice(1).join(" ") : "") || null;
+        const company = get("company") || null;
+        const email = (get("email") || "").toLowerCase() || null;
+        const rawPhone = get("phone") || null;
+        const phone = rawPhone ? normalisePhone(rawPhone, tenant?.country ?? "AU") : null;
+
+        if (!firstName && !company && !email) { errors.push(`Row ${r + 1}: no name, company or email`); continue; }
+
+        // Dedupe within tenant by email or phone.
+        if (email || phone) {
+          const dup = await prisma.customer.findFirst({
+            where: {
+              tenantId: request.tenantId, deletedAt: null,
+              OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
+            },
+          });
+          if (dup) { skipped += 1; continue; }
+        }
+
+        await prisma.customer.create({
+          data: {
+            tenantId: request.tenantId,
+            firstName, lastName, companyName: company,
+            email, phone,
+            billingStreet: get("address") || null,
+            billingSuburb: get("suburb") || null,
+            billingPostcode: get("postcode") || null,
+            internalNotes: get("notes") || null,
+            createdById: request.userId,
+          },
+        });
+        imported += 1;
+      }
+
+      return reply.status(201).send({ data: { imported, skipped, parsed: imported + skipped, errors: errors.slice(0, 50) } });
     }
   );
 

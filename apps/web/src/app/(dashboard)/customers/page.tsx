@@ -1,12 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, UserCheck, Building2, Phone, Mail, Star, ChevronRight } from "lucide-react";
+import { Search, UserCheck, Building2, Phone, Mail, Star, ChevronRight, Upload } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { cn, formatCurrency, formatRelative, initials } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -47,6 +47,34 @@ export default function CustomersPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = getToken();
+      const res = await fetch("/api/v1/customers/import-file", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message ?? "Import failed");
+      return json.data as { imported: number; skipped: number };
+    },
+    onSuccess: (d) => {
+      toast({ title: `Imported ${d.imported} customer${d.imported === 1 ? "" : "s"}`, description: d.skipped ? `${d.skipped} duplicate(s) skipped` : undefined });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (e: any) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
+  });
+  function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) importMutation.mutate(file);
+    e.target.value = "";
+  }
+
   const customers: any[] = data?.data ?? [];
   const canSubmit = form.firstName && form.lastName && form.phone.length >= 7;
 
@@ -72,6 +100,18 @@ export default function CustomersPage() {
         >
           <Star className="w-3.5 h-3.5" /> VIP only
         </button>
+        <input ref={fileInputRef} type="file" accept=".csv,.xlsx" hidden onChange={onFilePicked} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto h-8"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importMutation.isPending}
+          title="Import customers from a CSV or Excel file (e.g. exported from another system)"
+        >
+          <Upload className="w-4 h-4 mr-1.5" />
+          {importMutation.isPending ? "Importing…" : "Import customers"}
+        </Button>
       </div>
 
       <div className="p-4 lg:p-6">
