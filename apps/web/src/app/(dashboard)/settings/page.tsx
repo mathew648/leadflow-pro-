@@ -15,6 +15,7 @@ import { cn, initials } from "@/lib/utils";
 import { useRef } from "react";
 import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2, Upload, Inbox, Copy } from "lucide-react";
 import { EnableNotifications } from "@/components/enable-notifications";
+import { QRCodeSVG } from "qrcode.react";
 
 const TABS = [
   { id: "profile",   label: "Profile",     icon: User },
@@ -716,6 +717,9 @@ function IntegrationsTab() {
 /* ─── Lead Sources ─── */
 function LeadSourcesTab() {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const slug = user?.tenant?.slug;
+  const quoteUrl = slug ? `${typeof window !== "undefined" ? window.location.origin : ""}/q/${slug}` : "";
   const { data: webForm } = useQuery({ queryKey: ["web-form"], queryFn: () => api.get<any>("/leads/web-form") });
   const { data: googleHook } = useQuery({ queryKey: ["google-webhook"], queryFn: () => api.get<any>("/leads/google-ads-webhook") });
   const { data: metaStatus } = useQuery({ queryKey: ["meta-status"], queryFn: () => api.get<any>("/integrations/meta/status") });
@@ -756,11 +760,43 @@ function LeadSourcesTab() {
 
   return (
     <div className="space-y-5">
+      {/* Hosted quote page — no website needed */}
+      <Card className="border-brand-200">
+        <CardHeader>
+          <CardTitle className="text-base">⚡ Your quote page (no website needed)</CardTitle>
+          <CardDescription>Share this link anywhere — Google profile, Instagram bio, email signature, or print the QR on your van. Every request becomes a lead.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-5 items-start">
+            <div className="flex-1 w-full space-y-3">
+              <div className="flex gap-2">
+                <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{quoteUrl || "…"}</code>
+                <CopyBtn text={quoteUrl} label="Quote page link" />
+              </div>
+              <div className="flex gap-2">
+                <a href={quoteUrl || "#"} target="_blank" rel="noopener noreferrer">
+                  <Button type="button" size="sm" disabled={!quoteUrl}>Open my page</Button>
+                </a>
+              </div>
+              <p className="text-xs text-muted-foreground">Tip: add it as a &ldquo;Get a Quote&rdquo; button on your site, or text it straight to a customer.</p>
+            </div>
+            {quoteUrl && (
+              <div className="text-center">
+                <div className="bg-white p-2 rounded-lg border inline-block">
+                  <QRCodeSVG value={quoteUrl} size={116} />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">Scan to open</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Website form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">🌐 Your website form</CardTitle>
-          <CardDescription>Paste this onto your website — every submission becomes a lead with an instant auto-reply.</CardDescription>
+          <CardTitle className="text-base">🌐 Embed on your website</CardTitle>
+          <CardDescription>Prefer it built into your site? Paste this — every submission becomes a lead with an instant auto-reply.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <pre className={codeBox}>{wf.embedSnippet ?? "Loading…"}</pre>
