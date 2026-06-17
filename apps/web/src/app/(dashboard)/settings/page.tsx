@@ -616,6 +616,14 @@ function IntegrationsTab() {
     },
     onError: (e: any) => toast({ title: e.message ?? "Coming soon" }),
   });
+  const importData = useMutation({
+    mutationFn: (id: string) => api.post<any>(`/integrations/${id}/import`, {}),
+    onSuccess: (r: any) => {
+      const d = r?.data ?? r;
+      toast({ title: "Import complete", description: `${d?.customers ?? 0} customers and ${d?.items ?? 0} price items imported` });
+    },
+    onError: (e: any) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
+  });
   const connList = Array.isArray(connections) ? connections : (connections as any)?.data ?? [];
 
   return (
@@ -637,9 +645,22 @@ function IntegrationsTab() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {conn?.status === "active" ? (
-                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
-                    </span>
+                    <>
+                      {(integration.id === "xero" || integration.id === "myob") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={importData.isPending}
+                          onClick={() => importData.mutate(integration.id)}
+                          title="Import your existing customers & price list"
+                        >
+                          {importData.isPending ? "Importing…" : "Import data"}
+                        </Button>
+                      )}
+                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
+                      </span>
+                    </>
                   ) : (
                     <Button
                       size="sm"

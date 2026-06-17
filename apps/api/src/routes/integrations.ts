@@ -265,6 +265,27 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // POST /api/v1/integrations/:provider/import — pull existing customers + items into LeadFlow
+  fastify.post(
+    "/integrations/:provider/import",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request, reply) => {
+      const { provider } = z.object({ provider: z.enum(["xero", "myob"]) }).parse(request.params);
+      try {
+        const { importFromXero, importFromMyob } = await import("../lib/accounting-import.js");
+        const result = provider === "xero"
+          ? await importFromXero(request.tenantId)
+          : await importFromMyob(request.tenantId);
+        return { data: result };
+      } catch (err: any) {
+        if (typeof err?.message === "string" && err.message.includes("not connected")) {
+          return reply.status(404).send({ error: { code: "NOT_CONNECTED", message: `${provider} not connected` } });
+        }
+        return reply.status(502).send({ error: { code: "IMPORT_FAILED", message: err?.message ?? "Import failed" } });
+      }
+    }
+  );
+
   // ── Meta (Facebook / Instagram) Lead Ads — self-serve connect ──
   const FB = "https://graph.facebook.com/v18.0";
 
