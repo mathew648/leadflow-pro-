@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   Zap, LayoutDashboard, Users2, UserCheck, Briefcase, FileText,
   Receipt, Calendar, Settings, MessageSquare, BarChart3, LogOut,
-  ChevronLeft, Sparkles, Package, Workflow, HardHat,
+  ChevronLeft, Sparkles, Package, Workflow, HardHat, ShieldCheck,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { useAuthStore, useUIStore } from "@/lib/store";
@@ -103,6 +103,19 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="border-t border-white/10 p-3 space-y-1">
+          {user?.isPlatformAdmin && (
+            <Link
+              href="/admin"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-amber-300 hover:bg-white/10",
+                pathname.startsWith("/admin") && "bg-white/10"
+              )}
+              title={!sidebarOpen ? "Platform Admin" : undefined}
+            >
+              <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+              {sidebarOpen && <span>Platform Admin</span>}
+            </Link>
+          )}
           <Link
             href="/settings"
             className={cn(

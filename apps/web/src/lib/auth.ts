@@ -11,6 +11,7 @@ export interface AuthUser {
   phone?: string;
   role: string;
   avatarUrl?: string;
+  isPlatformAdmin?: boolean;
   tenant: {
     id: string;
     name: string;
