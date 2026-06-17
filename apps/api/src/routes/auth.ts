@@ -7,6 +7,8 @@ import { generateNumber } from "../lib/utils.js";
 import { nanoid } from "nanoid";
 import { writeAuditLog, auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
+import { seedDefaultAutomations } from "../lib/default-automations.js";
+import { seedStarterCatalog } from "../lib/default-catalog.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -252,6 +254,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
             activatedAt: new Date(),
           },
         });
+
+        // Seed the starter automation pack so notifications work from day one.
+        await seedDefaultAutomations(tx, tenant.id);
+
+        // Seed a starter price-book based on the tradie's selected trades.
+        await seedStarterCatalog(tx, tenant.id, body.tradeTypes, body.country === "NZ" ? 0.15 : 0.10);
 
         return { tenant, user };
       });

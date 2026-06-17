@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn, initials } from "@/lib/utils";
-import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2, Upload } from "lucide-react";
 
 const TABS = [
   { id: "profile",   label: "Profile",     icon: User },
@@ -93,6 +94,7 @@ function BusinessTab() {
       state: tenant.state ?? "",
       postcode: tenant.postcode ?? "",
       timezone: tenant.timezone ?? "Australia/Sydney",
+      primaryColor: tenant.primaryColor ?? "#2563EB",
     } : undefined,
   });
 
@@ -100,6 +102,26 @@ function BusinessTab() {
     mutationFn: (data: any) => api.patch("/tenant", data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["tenant"] }); toast({ title: "Business details updated" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Logo upload: presigned direct-to-R2 upload, then confirm (persists tenant.logoUrl).
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const token = getToken();
+      const auth = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const pre: any = await api.post("/upload/presigned", {
+        filename: file.name, contentType: file.type, category: "logo",
+      });
+      const put = await fetch(pre.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!put.ok) throw new Error("Upload failed (storage not configured?)");
+      await api.post("/upload/confirm", {
+        key: pre.key, publicUrl: pre.publicUrl, category: "logo", entityType: "tenant",
+      });
+      return pre.publicUrl as string;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tenant"] }); toast({ title: "Logo updated" }); },
+    onError: (e: any) => toast({ title: "Logo upload failed", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -153,6 +175,37 @@ function BusinessTab() {
               <option value="Pacific/Auckland">Pacific/Auckland (NZST)</option>
             </select>
           </div>
+          <div className="border-t pt-4 space-y-3">
+            <Label className="text-sm font-semibold">Branding</Label>
+            <p className="text-xs text-muted-foreground -mt-1">Your logo and colour appear on quotes, invoices and customer emails.</p>
+            <div className="flex items-center gap-4">
+              {tenant?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={tenant.logoUrl} alt="Logo" className="h-12 w-12 rounded-lg object-contain border bg-white" />
+              ) : (
+                <div className="h-12 w-12 rounded-lg border bg-muted flex items-center justify-center text-muted-foreground text-xs">Logo</div>
+              )}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) logoMutation.mutate(f); e.target.value = ""; }}
+              />
+              <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={logoMutation.isPending}>
+                <Upload className="w-4 h-4 mr-1.5" />
+                {logoMutation.isPending ? "Uploading…" : "Upload logo"}
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Brand colour</Label>
+              <div className="flex items-center gap-3">
+                <input type="color" {...register("primaryColor")} className="h-9 w-14 rounded border cursor-pointer p-0.5" />
+                <Input {...register("primaryColor")} placeholder="#2563EB" className="w-32 font-mono" />
+              </div>
+            </div>
+          </div>
+
           <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save changes</Button>
         </form>
       </CardContent>
@@ -181,6 +234,9 @@ function DocumentsTab() {
       requireCustomerSignoff: settings.requireCustomerSignoff ?? false,
       notifyNewLeadEmail: settings.notifyNewLeadEmail ?? true,
       notifyNewLeadSms: settings.notifyNewLeadSms ?? false,
+      notifyQuoteViewed: settings.notifyQuoteViewed ?? true,
+      notifyQuoteApproved: settings.notifyQuoteApproved ?? true,
+      notifyPaymentReceived: settings.notifyPaymentReceived ?? true,
       autoSendReviewRequest: settings.autoSendReviewRequest ?? false,
       reviewRequestDelayHours: settings.reviewRequestDelayHours ?? 24,
     } : undefined,
@@ -268,6 +324,18 @@ function DocumentsTab() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" {...register("notifyNewLeadSms")} className="rounded" />
             SMS me when a new lead comes in
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyQuoteViewed")} className="rounded" />
+            Notify me when a customer views a quote
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyQuoteApproved")} className="rounded" />
+            Notify me when a customer approves a quote
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyPaymentReceived")} className="rounded" />
+            Notify me when a payment is received
           </label>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" {...register("autoSendReviewRequest")} className="rounded" />

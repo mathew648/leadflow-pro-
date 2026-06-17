@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { enqueueAutomation, enqueueAIScoring, enqueueAccountingSync } from "../lib/queue.js";
 import { normalisePhone } from "../lib/utils.js";
+import { notifyBusiness } from "../lib/notify.js";
 import { config } from "../config.js";
 import Stripe from "stripe";
 
@@ -103,6 +104,11 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
               entityType: "lead",
               entityId: lead.id,
             });
+            notifyBusiness(tenantId, "new_lead", {
+              summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b> (via Meta Ads)`,
+              link: `/leads/${lead.id}`,
+              sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Meta Ads. Open LeadFlow Pro.`,
+            }).catch(() => {});
           });
         } catch (err) {
           fastify.log.error({ err, leadgenId }, "Failed to fetch Meta lead data");
@@ -179,6 +185,11 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
                 entityId: invoiceId,
                 action: "create",
               });
+
+              notifyBusiness(tenantId, "payment_received", {
+                summary: `Payment of <b>$${(amountCents / 100).toFixed(2)}</b> received for invoice ${invoice.invoiceNumber}.`,
+                link: `/invoices/${invoiceId}`,
+              }).catch(() => {});
 
               if (newAmountDue <= 0) {
                 await enqueueAutomation({
@@ -391,6 +402,12 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
         entityData: { source: "website", urgency: lead.urgency },
       });
       await enqueueAIScoring({ tenantId, leadId: lead.id });
+
+      notifyBusiness(tenantId, "new_lead", {
+        summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via website form)`,
+        link: `/leads/${lead.id}`,
+        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via website form. Open LeadFlow Pro.`,
+      }).catch(() => {});
 
       return reply.status(201).send({ data: { received: true } });
     }
