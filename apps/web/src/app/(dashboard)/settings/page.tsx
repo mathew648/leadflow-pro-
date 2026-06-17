@@ -897,9 +897,10 @@ function BillingTab() {
   const currentTier = sub?.tier ?? "starter";
   const status = sub?.status ?? "trialing";
   const planList: any[] = Array.isArray(plans) ? plans : plans?.data ?? [];
+  const [annual, setAnnual] = useState(false);
 
   const checkout = useMutation({
-    mutationFn: (plan: string) => api.post<any>("/billing/checkout", { plan }),
+    mutationFn: (plan: string) => api.post<any>("/billing/checkout", { plan, cycle: annual ? "annual" : "monthly" }),
     onSuccess: (r: any) => { if (r?.url) window.location.href = r.url; },
     onError: (e: any) => toast({ title: "Couldn't start checkout", description: e.message, variant: "destructive" }),
   });
@@ -923,14 +924,23 @@ function BillingTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Billing cycle toggle */}
+          <div className="flex items-center gap-2 mb-4 text-sm">
+            <span className={annual ? "text-muted-foreground" : "font-semibold"}>Monthly</span>
+            <button type="button" onClick={() => setAnnual((a) => !a)} className="relative w-12 h-6 rounded-full bg-primary" aria-label="Toggle annual billing">
+              <span className={cn("absolute top-1 w-4 h-4 rounded-full bg-white transition-all", annual ? "left-7" : "left-1")} />
+            </button>
+            <span className={annual ? "font-semibold" : "text-muted-foreground"}>Annual <span className="text-green-600">· 2 months free</span></span>
+          </div>
           <div className="grid gap-4 sm:grid-cols-3">
             {planList.map((p) => {
               const isCurrent = p.id === currentTier && status === "active";
+              const cents = annual ? (p.annualCents ?? p.priceCents * 10) : p.priceCents;
               return (
                 <div key={p.id} className={cn("rounded-xl border p-5", isCurrent && "ring-1 ring-primary border-primary")}>
                   <h3 className="font-semibold text-lg">{p.name}</h3>
-                  <p className="mt-1 text-2xl font-bold">{money(p.priceCents, p.currency)}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Up to {p.maxUsers} user{p.maxUsers === 1 ? "" : "s"}</p>
+                  <p className="mt-1 text-2xl font-bold">{money(cents, p.currency)}<span className="text-sm font-normal text-muted-foreground">{annual ? "/yr" : "/mo"}</span></p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Up to {p.maxUsers} user{p.maxUsers === 1 ? "" : "s"}{annual ? ` · save ${money(p.priceCents * 2, p.currency)}` : ""}</p>
                   <Button
                     className="w-full mt-4"
                     variant={isCurrent ? "outline" : "default"}
