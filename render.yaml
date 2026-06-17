@@ -69,7 +69,7 @@ services:
     plan: free
     region: oregon
     buildCommand: npm install -g corepack@latest && corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter web build
-    startCommand: corepack enable && pnpm --filter web start -- -p $PORT
+    startCommand: corepack enable && pnpm --filter web start
     healthCheckPath: /login
     envVars:
       - key: NODE_ENV
