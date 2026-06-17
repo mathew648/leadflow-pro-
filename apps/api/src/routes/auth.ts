@@ -19,7 +19,7 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(12, "Password must be at least 12 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   phone: z.string().optional(),
@@ -376,7 +376,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // POST /api/v1/auth/accept-invite — set password, activate, and log the new teammate in.
   fastify.post("/auth/accept-invite", async (request, reply) => {
-    const body = z.object({ token: z.string().min(10), password: z.string().min(12).max(200) }).parse(request.body);
+    const body = z.object({ token: z.string().min(10), password: z.string().min(8).max(200) }).parse(request.body);
     let payload: any;
     try { payload = fastify.jwt.verify(body.token); } catch {
       return reply.status(410).send({ error: { code: "INVITE_INVALID", message: "This invite link is invalid or has expired." } });
