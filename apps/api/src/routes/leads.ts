@@ -1,9 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { nanoid } from "nanoid";
 import { prisma } from "../lib/prisma.js";
 import { normalisePhone, generateNumber, encodeCursor, decodeCursor } from "../lib/utils.js";
 import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
+import { config } from "../config.js";
 
 const createLeadSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -291,6 +293,52 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       auditFromRequest(request, "create", "lead", lead.id).catch(() => {});
 
       return reply.status(201).send({ data: lead });
+    }
+  );
+
+  // GET /api/v1/leads/web-form — return (lazily creating) this tenant's public
+  // website-form key, the intake endpoint, and a copy-paste embed snippet.
+  fastify.get(
+    "/leads/web-form",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const { tenantId } = request;
+
+      let sourceConfig = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId, source: "website" } },
+      });
+
+      if (!sourceConfig || !(sourceConfig.config as any)?.formKey) {
+        const formKey = nanoid(24);
+        sourceConfig = await prisma.leadSourceConfig.upsert({
+          where: { tenantId_source: { tenantId, source: "website" } },
+          create: { tenantId, source: "website", isActive: true, config: { formKey } },
+          update: { isActive: true, config: { formKey } },
+        });
+      }
+
+      const formKey = (sourceConfig.config as any).formKey as string;
+      const endpoint = `${config.API_URL}/api/v1/webhooks/forms/${formKey}`;
+      const embedSnippet = [
+        `<form id="lfp-lead-form">`,
+        `  <input name="firstName" placeholder="Your name" required />`,
+        `  <input name="phone" placeholder="Phone" />`,
+        `  <input name="email" type="email" placeholder="Email" />`,
+        `  <input name="serviceRequired" placeholder="What do you need?" />`,
+        `  <input name="companyWebsite" style="display:none" tabindex="-1" autocomplete="off" />`,
+        `  <button type="submit">Request a quote</button>`,
+        `</form>`,
+        `<script>`,
+        `document.getElementById('lfp-lead-form').addEventListener('submit', async (e) => {`,
+        `  e.preventDefault();`,
+        `  const data = Object.fromEntries(new FormData(e.target).entries());`,
+        `  await fetch('${endpoint}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });`,
+        `  e.target.innerHTML = '<p>Thanks! We will be in touch shortly.</p>';`,
+        `});`,
+        `</script>`,
+      ].join("\n");
+
+      return { data: { formKey, endpoint, embedSnippet, lastEventAt: sourceConfig.lastEventAt } };
     }
   );
 

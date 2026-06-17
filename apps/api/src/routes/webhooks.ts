@@ -2,7 +2,8 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../lib/prisma.js";
-import { enqueueAutomation } from "../lib/queue.js";
+import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
+import { normalisePhone } from "../lib/utils.js";
 import { config } from "../config.js";
 import Stripe from "stripe";
 
@@ -261,4 +262,128 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
 
     return reply.status(200).send("OK");
   });
+
+  // POST /api/v1/webhooks/forms/:formKey — public website / landing-page form intake.
+  // No auth: the tenant is resolved from the per-tenant form key. Rate-limited + honeypot
+  // protected. Mirrors the dedup + automation behaviour of the authenticated POST /leads.
+  fastify.post(
+    "/webhooks/forms/:formKey",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { formKey } = request.params as { formKey: string };
+
+      const body = z.object({
+        // Honeypot — hidden field that real users leave empty and bots fill in.
+        companyWebsite: z.string().optional(),
+        firstName: z.string().trim().min(1).max(100).optional(),
+        lastName: z.string().trim().max(100).optional(),
+        name: z.string().trim().max(200).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().max(30).optional(),
+        serviceRequired: z.string().max(500).optional(),
+        suburb: z.string().max(100).optional(),
+        postcode: z.string().max(10).optional(),
+        message: z.string().max(2000).optional(),
+        utmSource: z.string().max(100).optional(),
+        utmMedium: z.string().max(100).optional(),
+        utmCampaign: z.string().max(100).optional(),
+      }).parse(request.body ?? {});
+
+      // Honeypot tripped → silently accept and drop (don't tip off bots).
+      if (body.companyWebsite && body.companyWebsite.trim() !== "") {
+        return reply.status(201).send({ data: { received: true } });
+      }
+
+      const firstName = body.firstName ?? body.name?.split(" ")[0] ?? null;
+      const lastName = body.lastName ?? (body.name ? body.name.split(" ").slice(1).join(" ") : null);
+      if (!firstName) {
+        return reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Name is required" } });
+      }
+      if (!body.email && !body.phone) {
+        return reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Email or phone is required" } });
+      }
+
+      // Resolve the tenant from the form key.
+      const sourceConfig = await prisma.leadSourceConfig.findFirst({
+        where: { source: "website", isActive: true, config: { path: ["formKey"], equals: formKey } },
+      });
+      if (!sourceConfig) {
+        return reply.status(404).send({ error: { code: "FORM_NOT_FOUND", message: "Unknown or inactive form" } });
+      }
+      const { tenantId } = sourceConfig;
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { country: true },
+      });
+      const normalisedPhone = body.phone ? normalisePhone(body.phone, tenant?.country ?? "AU") : null;
+
+      // Duplicate guard (same rule as authenticated intake). Public callers get a generic
+      // ack so we never reveal whether a contact already exists.
+      if (normalisedPhone || body.email) {
+        const duplicate = await prisma.lead.findFirst({
+          where: {
+            tenantId,
+            deletedAt: null,
+            status: { in: ["active", "converted"] },
+            OR: [
+              ...(normalisedPhone ? [{ phone: normalisedPhone }] : []),
+              ...(body.email ? [{ email: body.email.toLowerCase() }] : []),
+            ],
+          },
+        });
+        if (duplicate) {
+          return reply.status(201).send({ data: { received: true } });
+        }
+      }
+
+      const defaultStage = await prisma.pipelineStage.findFirst({
+        where: { tenantId, isDefault: true },
+      });
+
+      const lead = await prisma.lead.create({
+        data: {
+          tenantId,
+          leadNumber: `LEA-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`,
+          firstName,
+          lastName,
+          email: body.email?.toLowerCase(),
+          phone: normalisedPhone ?? body.phone,
+          source: "website",
+          sourceDetail: "web_form",
+          utmSource: body.utmSource,
+          utmMedium: body.utmMedium,
+          utmCampaign: body.utmCampaign,
+          serviceRequired: body.serviceRequired,
+          suburb: body.suburb,
+          postcode: body.postcode,
+          notes: body.message,
+          stageId: defaultStage?.id,
+          status: "active",
+          rawPayload: { ...body, ip: request.ip },
+        },
+      });
+
+      await prisma.leadActivity.create({
+        data: { tenantId, leadId: lead.id, type: "lead_created", description: "Lead created from website form" },
+      });
+
+      await prisma.leadSourceConfig.update({
+        where: { id: sourceConfig.id },
+        data: { lastEventAt: new Date() },
+      });
+
+      // Same automation + AI scoring as every other lead source.
+      await enqueueAutomation({
+        tenantId,
+        triggerType: "lead_created",
+        entityType: "lead",
+        entityId: lead.id,
+        entityData: { source: "website", urgency: lead.urgency },
+      });
+      await enqueueAIScoring({ tenantId, leadId: lead.id });
+
+      return reply.status(201).send({ data: { received: true } });
+    }
+  );
 }
