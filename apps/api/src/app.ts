@@ -110,17 +110,11 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   });
 
   await fastify.register(fastifyCors, {
-    origin: (origin, callback) => {
-      // No origin = server-to-server / same-origin proxy (curl, the Next.js /api proxy).
-      if (!origin) return callback(null, true);
-      const allowed = [config.APP_URL, "http://localhost:3000", "http://localhost:3001"];
-      let host = "";
-      try { host = new URL(origin).hostname; } catch { /* ignore */ }
-      const ok = allowed.some((o) => o && origin.startsWith(o)) || host.endsWith(".onrender.com");
-      // IMPORTANT: never throw here — a thrown error becomes a 500 and breaks every
-      // browser POST (login/register). Decline gracefully instead.
-      callback(null, ok);
-    },
+    // Reflect any origin. Public lead-intake endpoints (website forms, ad webhooks) are
+    // embedded on arbitrary tradie domains and must accept cross-origin posts. This is safe:
+    // API auth is via Bearer tokens (not readable cross-site) and the refresh cookie is
+    // SameSite=Strict (never sent cross-site), so CORS is not the security boundary here.
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-Key"],
