@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { generatePortalToken, calculateLineItem, calculateTotals } from "../lib/utils.js";
-import { enqueueAutomation, enqueueEmail, enqueuePdf, QUEUES, enqueueDelayed } from "../lib/queue.js";
+import { enqueueAutomation, enqueueEmail, enqueuePdf, QUEUES, enqueueDelayed, enqueueAccountingSync } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
 import { config } from "../config.js";
@@ -287,6 +287,15 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         entityId: id,
       });
 
+      // Mirror the invoice into the connected accounting system (no-op if not connected).
+      await enqueueAccountingSync({
+        tenantId: request.tenantId,
+        provider: "xero",
+        entityType: "invoice",
+        entityId: id,
+        action: "create",
+      });
+
       // Schedule overdue reminders
       if (invoice.dueDate) {
         const daysUntilDue = Math.round(
@@ -374,6 +383,15 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
           entityId: id,
         });
       }
+
+      // Push the payment to the connected accounting system (no-op if not connected).
+      await enqueueAccountingSync({
+        tenantId: request.tenantId,
+        provider: "xero",
+        entityType: "payment",
+        entityId: id,
+        action: "create",
+      });
 
       // Email the customer a payment receipt (logged to Message history)
       if (invoice.customer.email) {

@@ -4,6 +4,7 @@ import { startPdfWorker } from "./pdf.worker.js";
 import { startAIScoringWorker } from "./ai-scoring.worker.js";
 import { startAutomationWorker } from "./automation.worker.js";
 import { startNotificationsWorker } from "./notifications.worker.js";
+import { startAccountingSyncWorker } from "./accounting-sync.worker.js";
 
 export function startAllWorkers() {
   const workers = [
@@ -13,6 +14,7 @@ export function startAllWorkers() {
     startAIScoringWorker(),
     startAutomationWorker(),
     startNotificationsWorker(),
+    startAccountingSyncWorker(),
   ];
 
   console.log(`[workers] Started ${workers.length} BullMQ workers`);
