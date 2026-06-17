@@ -99,11 +99,6 @@ export default function LoginPage() {
               Start free trial
             </Link>
           </div>
-
-          {/* Demo credentials */}
-          <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-muted-foreground">
-            <strong>Demo:</strong> admin@demo-electrical.com.au / Demo1234!
-          </div>
         </div>
       </div>
     </div>
