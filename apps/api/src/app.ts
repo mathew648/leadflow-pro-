@@ -111,12 +111,15 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   await fastify.register(fastifyCors, {
     origin: (origin, callback) => {
+      // No origin = server-to-server / same-origin proxy (curl, the Next.js /api proxy).
+      if (!origin) return callback(null, true);
       const allowed = [config.APP_URL, "http://localhost:3000", "http://localhost:3001"];
-      if (!origin || allowed.some((o) => origin.startsWith(o))) {
-        callback(null, true);
-      } else {
-        callback(new Error("CORS not allowed"), false);
-      }
+      let host = "";
+      try { host = new URL(origin).hostname; } catch { /* ignore */ }
+      const ok = allowed.some((o) => o && origin.startsWith(o)) || host.endsWith(".onrender.com");
+      // IMPORTANT: never throw here — a thrown error becomes a 500 and breaks every
+      // browser POST (login/register). Decline gracefully instead.
+      callback(null, ok);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
