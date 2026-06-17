@@ -137,6 +137,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_WINDOW_MS,
       redis: getRedis() as any,
+      // If Redis is briefly unavailable, allow the request instead of 500-ing.
+      // Otherwise a Redis hiccup makes rate-limited routes (login/register) fail.
+      skipOnError: true,
       keyGenerator: (req) => `${req.headers["x-tenant-id"] ?? req.ip}`,
       errorResponseBuilder: () => ({
         error: { code: "RATE_LIMITED", message: "Too many requests" },
