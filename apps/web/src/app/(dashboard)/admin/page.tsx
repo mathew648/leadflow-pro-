@@ -11,6 +11,17 @@ import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, Users2, DollarSign, Send } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+
+function timeAgo(iso?: string | null): string {
+  if (!iso) return "Never";
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 30) return `${days}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-700",
@@ -80,6 +91,22 @@ export default function AdminPage() {
           ))}
         </div>
 
+        {/* Signups over time */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">New tradies (last 6 months)</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={s.signups ?? []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(v: number) => [`${v} signups`, ""]} />
+                <Bar dataKey="signups" fill="#2563EB" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
         {/* Promo email */}
         <Card>
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Send className="w-4 h-4" /> Send promotional email</CardTitle></CardHeader>
@@ -87,6 +114,8 @@ export default function AdminPage() {
             <div className="grid sm:grid-cols-[1fr_auto] gap-3">
               <Input placeholder="Subject" value={promo.subject} onChange={(e) => setPromo((p) => ({ ...p, subject: e.target.value }))} />
               <select
+                aria-label="Promo email audience"
+                title="Audience"
                 value={promo.audience}
                 onChange={(e) => setPromo((p) => ({ ...p, audience: e.target.value }))}
                 className="px-3 py-2 text-sm border rounded-md"
@@ -118,7 +147,7 @@ export default function AdminPage() {
           <CardContent>
             <div className="flex gap-2 mb-4 flex-wrap">
               <Input placeholder="Search business or email…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs h-8" />
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 h-8 text-sm border rounded-md">
+              <select aria-label="Filter by subscription status" title="Status filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 h-8 text-sm border rounded-md">
                 <option value="">All statuses</option>
                 <option value="trialing">Trialing</option>
                 <option value="active">Active (paying)</option>
@@ -141,6 +170,7 @@ export default function AdminPage() {
                       <th className="px-3 py-2 font-medium">Status</th>
                       <th className="px-3 py-2 font-medium text-right">Users</th>
                       <th className="px-3 py-2 font-medium text-right">Leads</th>
+                      <th className="px-3 py-2 font-medium text-right">Last active</th>
                       <th className="px-3 py-2 font-medium text-right">Joined</th>
                     </tr>
                   </thead>
@@ -161,12 +191,13 @@ export default function AdminPage() {
                           </td>
                           <td className="px-3 py-2 text-right">{t._count?.users ?? 0}</td>
                           <td className="px-3 py-2 text-right">{t._count?.leads ?? 0}</td>
+                          <td className={cn("px-3 py-2 text-right", t.lastActiveAt ? "text-muted-foreground" : "text-amber-600")}>{timeAgo(t.lastActiveAt)}</td>
                           <td className="px-3 py-2 text-right text-muted-foreground">{new Date(t.createdAt).toLocaleDateString("en-AU")}</td>
                         </tr>
                       );
                     })}
                     {list.length === 0 && (
-                      <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No tradies found.</td></tr>
+                      <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No tradies found.</td></tr>
                     )}
                   </tbody>
                 </table>

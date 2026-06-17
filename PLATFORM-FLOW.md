@@ -7,16 +7,18 @@ There are two journeys: **your SaaS business** (selling LeadFlow) and **the trad
 
 ## Journey 1 — Your SaaS business (how you earn)
 
-```
-  ┌──────────┐   ┌──────────┐   ┌───────────────┐   ┌──────────┐   ┌──────────────────┐
-  │  Tradie  │──▶│  Sign up │──▶│ 14-day free   │──▶│   Pays   │──▶│  You see it all  │
-  │ finds you│   │ /register│   │     trial     │   │ (Stripe) │   │   in ADMIN panel │
-  └──────────┘   └──────────┘   └───────────────┘   └──────────┘   └──────────────────┘
-   marketing      picks trade     full product,       picks plan      tradies, paying vs
-   site: / ,      + AU/NZ →       no card needed       in Settings     trial, MRR, promo
-   /pricing,      auto-gets price                      → Billing       emails
-   /features      book + setup
-                  checklist
+```mermaid
+flowchart LR
+    A["🔎 Tradie finds you<br/>marketing site<br/>/ · /pricing · /features"] --> B["📝 Sign up<br/>/register<br/>picks trade + AU/NZ"]
+    B --> C["🎁 14-day free trial<br/>full product,<br/>no card needed"]
+    C --> D["💳 Pays<br/>Stripe checkout<br/>Settings → Billing"]
+    D --> E["🛡️ You see it all<br/>ADMIN panel"]
+    B -.->|auto-provisioned| F["✅ Starter price-book<br/>+ automations<br/>+ setup checklist"]
+    E --> G["📊 Tradies · paying vs trial<br/>· MRR · promo emails"]
+
+    style A fill:#EFF6FF,stroke:#2563EB
+    style E fill:#FEF3C7,stroke:#D97706
+    style D fill:#DCFCE7,stroke:#16A34A
 ```
 
 **Admin panel (`/admin`, you only):** total tradies · paying vs trial · monthly revenue (MRR) · per-tradie usage · send promo emails.
@@ -25,25 +27,34 @@ There are two journeys: **your SaaS business** (selling LeadFlow) and **the trad
 
 ## Journey 2 — The tradie's daily flow (the core engine — mostly automatic)
 
-```
-        LEADS IN                       WIN & QUOTE                  DELIVER & GET PAID
-  ┌───────────────────┐         ┌────────────────────┐       ┌──────────────────────┐
-  │ Website form      │         │  Tradie marks the  │       │  Quote → JOB          │
-  │ Google Ads        │         │  lead "won"        │       │  (schedule, assign,   │
-  │ Meta/Facebook Ads │──┐      │         │          │       │   photos)             │
-  │ SMS               │  │      │         ▼          │       │         │             │
-  │ Manual entry      │  │      │  Pick services +   │       │         ▼             │
-  └───────────────────┘  │      │  prices from the   │       │  INVOICE sent         │
-                         │      │  price-book →      │       │         │             │
-                         ▼      │  QUOTE auto-made   │       │         ▼             │
-              ┌─────────────────┐│         │          │       │  Customer pays online │
-              │  ONE LEAD INBOX ││         ▼          │       │  (card / Stripe)      │
-              │                 ││  Customer reviews  │       │         │             │
-              │  • auto-reply   ││  & e-signs on      │       │         ▼             │
-              │    to customer  ││  their phone       │       │  Auto-syncs to        │
-              │  • alert to     ││  (auto follow-up   │       │  XERO / MYOB          │
-              │    tradie       ││   if no response)  │       │  (no double entry)    │
-              └─────────────────┘└────────────────────┘       └──────────────────────┘
+```mermaid
+flowchart TD
+    subgraph IN["① LEADS IN"]
+        L1["🌐 Website form"]
+        L2["🔍 Google Ads"]
+        L3["📣 Meta / Facebook Ads"]
+        L4["💬 SMS"]
+        L5["⌨️ Manual entry"]
+    end
+
+    IN --> INBOX["📥 ONE LEAD INBOX"]
+    INBOX --> AUTO{"⚡ Instantly"}
+    AUTO --> R1["📧 Auto-reply to customer"]
+    AUTO --> R2["🔔 Alert to tradie"]
+
+    R1 --> WON["🏆 Tradie marks lead 'WON'"]
+    R2 --> WON
+    WON --> QUOTE["🧾 Pick services + prices →<br/>QUOTE auto-generated"]
+    QUOTE --> SIGN["✍️ Customer reviews &<br/>e-signs on their phone<br/>(auto follow-up if quiet)"]
+    SIGN --> JOB["🛠️ JOB scheduled<br/>(assign team, photos)"]
+    JOB --> INV["📄 INVOICE sent"]
+    INV --> PAY["💰 Customer pays online<br/>(card / Stripe)"]
+    PAY --> SYNC["🔄 Auto-syncs to<br/>XERO / MYOB"]
+
+    style INBOX fill:#EFF6FF,stroke:#2563EB
+    style QUOTE fill:#F5F3FF,stroke:#7C3AED
+    style PAY fill:#DCFCE7,stroke:#16A34A
+    style SYNC fill:#FEF3C7,stroke:#D97706
 ```
 
 ### The flow in words

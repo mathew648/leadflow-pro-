@@ -28,6 +28,29 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const byStatus: Record<string, number> = {};
     for (const s of subsByStatus) byStatus[s.status] = s._count.id;
     const mrrCents = activeSubs.reduce((sum, s) => sum + s.basePriceCents, 0);
+
+    // Signups over the last 6 months (for the growth chart).
+    const allSignups = await prisma.tenant.findMany({
+      where: { deletedAt: null },
+      select: { createdAt: true },
+    });
+    const now = new Date();
+    const months: { key: string; label: string; count: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        key: `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`,
+        label: m.toLocaleDateString("en-AU", { month: "short" }),
+        count: 0,
+      });
+    }
+    for (const t of allSignups) {
+      const c = t.createdAt;
+      const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}`;
+      const bucket = months.find((mm) => mm.key === key);
+      if (bucket) bucket.count += 1;
+    }
+
     return {
       data: {
         tenants: tenantCount,
@@ -36,6 +59,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         pastDue: byStatus.past_due ?? 0,
         cancelled: byStatus.cancelled ?? 0,
         mrrCents,
+        signups: months.map((m) => ({ month: m.label, signups: m.count })),
       },
     };
   });
@@ -63,11 +87,19 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         createdAt: true, subscriptionStatus: true, trialEndsAt: true,
         subscription: { select: { tier: true, status: true, basePriceCents: true, currentPeriodEnd: true, stripeCustomerId: true } },
         _count: { select: { users: true, leads: true, invoices: true } },
+        // Most recent login across the tenant's team = "last active".
+        users: { select: { lastLoginAt: true }, orderBy: { lastLoginAt: { sort: "desc", nulls: "last" } }, take: 1 },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
     });
-    return { data: tenants };
+
+    // Flatten the latest login into a lastActiveAt field.
+    const data = tenants.map(({ users, ...t }) => ({
+      ...t,
+      lastActiveAt: users[0]?.lastLoginAt ?? null,
+    }));
+    return { data };
   });
 
   // POST /api/v1/admin/promo-email — send a promo/announcement to tradie owners.
