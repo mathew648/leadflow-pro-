@@ -438,4 +438,70 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
       return reply.status(201).send({ data: { received: true } });
     }
   );
+
+  // POST /api/v1/webhooks/google — Google Lead Form Ads.
+  // Google posts the lead with a shared `google_key`; we resolve the tenant by that key
+  // (stored in their LeadSourceConfig) and create the lead like any other source.
+  fastify.post("/webhooks/google", async (request, reply) => {
+    const body = request.body as any;
+    const googleKey = body?.google_key;
+    if (!googleKey) return reply.status(400).send({ error: { code: "MISSING_KEY", message: "Missing google_key" } });
+
+    const sourceConfig = await prisma.leadSourceConfig.findFirst({
+      where: { source: "google_ads", isActive: true, config: { path: ["googleKey"], equals: googleKey } },
+    });
+    if (!sourceConfig) return reply.status(401).send({ error: { code: "INVALID_KEY", message: "Unknown google_key" } });
+
+    const tenantId = sourceConfig.tenantId;
+    const cols: any[] = body?.user_column_data ?? [];
+    const field = (id: string) => cols.find((c) => c.column_id === id)?.string_value ?? "";
+
+    const fullName = field("FULL_NAME");
+    const firstName = field("FIRST_NAME") || fullName.split(" ")[0] || "Unknown";
+    const lastName = field("LAST_NAME") || (fullName ? fullName.split(" ").slice(1).join(" ") : "");
+    const email = field("EMAIL") || undefined;
+    const phone = field("PHONE_NUMBER") || undefined;
+
+    // Skip duplicates (active/converted) like the other intakes.
+    if (email || phone) {
+      const dup = await prisma.lead.findFirst({
+        where: {
+          tenantId, deletedAt: null, status: { in: ["active", "converted"] },
+          OR: [...(phone ? [{ phone }] : []), ...(email ? [{ email: email.toLowerCase() }] : [])],
+        },
+      });
+      if (dup) return reply.status(200).send({ received: true });
+    }
+
+    const defaultStage = await prisma.pipelineStage.findFirst({ where: { tenantId, isDefault: true } });
+
+    const lead = await prisma.lead.create({
+      data: {
+        tenantId,
+        source: "google_ads",
+        sourceDetail: "google_lead_form",
+        sourceCampaignId: body?.campaign_id ? String(body.campaign_id) : undefined,
+        sourceFormId: body?.form_id ? String(body.form_id) : undefined,
+        firstName,
+        lastName,
+        email: email?.toLowerCase(),
+        phone,
+        stageId: defaultStage?.id,
+        status: "active",
+        rawPayload: body,
+      },
+    });
+
+    await prisma.leadSourceConfig.update({ where: { id: sourceConfig.id }, data: { lastEventAt: new Date() } });
+
+    await enqueueAutomation({ tenantId, triggerType: "lead_created", entityType: "lead", entityId: lead.id, entityData: { source: "google_ads" } });
+    await enqueueAIScoring({ tenantId, leadId: lead.id });
+    notifyBusiness(tenantId, "new_lead", {
+      summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b> (via Google Ads)`,
+      link: `/leads/${lead.id}`,
+      sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Google Ads. Open LeadFlow Pro.`,
+    }).catch(() => {});
+
+    return reply.status(200).send({ received: true });
+  });
 }

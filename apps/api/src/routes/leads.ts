@@ -349,6 +349,36 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/v1/leads/google-ads-webhook — return (lazily creating) this tenant's
+  // Google Lead Form webhook URL + key to paste into Google Ads.
+  fastify.get(
+    "/leads/google-ads-webhook",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const { tenantId } = request;
+      let sourceConfig = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId, source: "google_ads" } },
+      });
+      if (!sourceConfig || !(sourceConfig.config as any)?.googleKey) {
+        const googleKey = nanoid(32);
+        sourceConfig = await prisma.leadSourceConfig.upsert({
+          where: { tenantId_source: { tenantId, source: "google_ads" } },
+          create: { tenantId, source: "google_ads", isActive: true, config: { googleKey } },
+          update: { isActive: true, config: { googleKey } },
+        });
+      }
+      const googleKey = (sourceConfig.config as any).googleKey as string;
+      return {
+        data: {
+          webhookUrl: `${config.API_URL}/api/v1/webhooks/google`,
+          googleKey,
+          lastEventAt: sourceConfig.lastEventAt,
+          instructions: "In Google Ads, open your Lead Form asset → Delivery → Webhook integration. Paste the Webhook URL and Key, then send test data.",
+        },
+      };
+    }
+  );
+
   // GET /api/v1/leads/:id
   fastify.get(
     "/leads/:id",
