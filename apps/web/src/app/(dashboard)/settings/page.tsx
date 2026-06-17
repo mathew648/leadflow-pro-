@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn, initials } from "@/lib/utils";
 import { useRef } from "react";
 import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2, Upload, Inbox, Copy } from "lucide-react";
+import { EnableNotifications } from "@/components/enable-notifications";
 
 const TABS = [
   { id: "profile",   label: "Profile",     icon: User },
@@ -366,6 +367,9 @@ function DocumentsTab() {
             <input type="checkbox" {...register("notifyPaymentReceived")} className="rounded" />
             Notify me when a payment is received
           </label>
+          <div className="pt-2 border-t mt-2">
+            <EnableNotifications />
+          </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" {...register("autoSendReviewRequest")} className="rounded" />
             Automatically request a review after job completion

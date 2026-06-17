@@ -65,6 +65,11 @@ const envSchema = z.object({
   ABR_GUID: z.string().optional(),       // Australian Business Register ABN Lookup GUID (free)
   NZBN_API_KEY: z.string().optional(),   // NZBN API subscription key
 
+  // Web Push (VAPID) — browser/PWA push notifications.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:support@leadflowpro.com"),
+
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("development"),
 });
