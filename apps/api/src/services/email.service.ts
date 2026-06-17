@@ -157,6 +157,19 @@ function renderTemplate(template: string, data: Record<string, unknown>): { html
       break;
     }
 
+    case "review_request": {
+      const { customerName, reviewUrl } = data;
+      body = `
+      <p style="font-size:16px;">Hi ${customerName ?? "there"},</p>
+      <p>Thanks for choosing ${businessName}! We hope you're happy with the work.</p>
+      <p>A quick review would mean a lot and helps other locals find us — it only takes 30 seconds:</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${reviewUrl}" style="background:${primaryColor};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">⭐ Leave a review</a>
+      </p>
+      <p style="font-size:13px;color:#6B7280;">Thank you — we really appreciate it!</p>`;
+      break;
+    }
+
     case "custom": {
       body = `<div style="padding:8px 0;">${String(data.body ?? "")}</div>`;
       break;

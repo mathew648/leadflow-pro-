@@ -1,9 +1,15 @@
 import { Worker, Job } from "bullmq";
 import { createWorkerConnection } from "../lib/redis.js";
-import { QUEUES } from "../lib/queue.js";
+import { QUEUES, enqueueSms } from "../lib/queue.js";
 import { prisma } from "../lib/prisma.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
 import { config } from "../config.js";
+
+function reviewLink(settings: { googleReviewUrl?: string | null; googlePlaceId?: string | null } | null): string | null {
+  if (settings?.googleReviewUrl) return settings.googleReviewUrl;
+  if (settings?.googlePlaceId) return `https://search.google.com/local/writereview?placeid=${settings.googlePlaceId}`;
+  return null;
+}
 
 interface InvoiceReminderPayload {
   tenantId: string;
@@ -68,6 +74,44 @@ export function startNotificationsWorker() {
         await prisma.invoice.update({ where: { id: invoice.id }, data: stamp }).catch(() => {});
 
         return { sent: true, to };
+      }
+
+      if (job.name === "review-request") {
+        const data = job.data as { tenantId: string; customerId: string; jobId: string };
+        const [tenant, settings, customer] = await Promise.all([
+          prisma.tenant.findUnique({ where: { id: data.tenantId } }),
+          prisma.tenantSettings.findUnique({ where: { tenantId: data.tenantId } }),
+          prisma.customer.findUnique({ where: { id: data.customerId } }),
+        ]);
+        if (!tenant || !customer) return { skipped: "not_found" };
+        if (!settings?.autoSendReviewRequest) return { skipped: "disabled" };
+        const url = reviewLink(settings);
+        if (!url) return { skipped: "no_review_link" };
+
+        const firstName = customer.firstName ?? "there";
+        let channels = 0;
+
+        if (customer.email) {
+          await sendBrandedEmail({
+            tenantId: tenant.id,
+            tenant,
+            to: customer.email,
+            customerId: customer.id,
+            subject: `How did we do? — ${tenant.businessName}`,
+            template: "review_request",
+            data: { customerName: firstName, reviewUrl: url, businessName: tenant.businessName },
+          }).catch(() => {});
+          channels += 1;
+        }
+        if (customer.phone) {
+          await enqueueSms({
+            tenantId: tenant.id,
+            to: customer.phone,
+            body: `Hi ${firstName}, thanks for choosing ${tenant.businessName}! If you were happy with the work, we'd really appreciate a quick review: ${url}`,
+          });
+          channels += 1;
+        }
+        return { sent: channels > 0, channels };
       }
 
       return { skipped: "unknown_job" };

@@ -267,6 +267,7 @@ function DocumentsTab() {
       notifyPaymentReceived: settings.notifyPaymentReceived ?? true,
       autoSendReviewRequest: settings.autoSendReviewRequest ?? false,
       reviewRequestDelayHours: settings.reviewRequestDelayHours ?? 24,
+      googleReviewUrl: settings.googleReviewUrl ?? "",
     } : undefined,
   });
 
@@ -372,6 +373,13 @@ function DocumentsTab() {
           <div className="space-y-1.5">
             <Label>Review request delay (hours after completion)</Label>
             <Input type="number" {...register("reviewRequestDelayHours")} min="0" max="168" className="max-w-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Google review link</Label>
+            <Input {...register("googleReviewUrl")} placeholder="https://g.page/r/your-review-link" />
+            <p className="text-xs text-muted-foreground">
+              From your Google Business Profile → &ldquo;Get more reviews&rdquo; → copy the link. Needed for review requests to send.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -616,6 +624,14 @@ function IntegrationsTab() {
     },
     onError: (e: any) => toast({ title: e.message ?? "Coming soon" }),
   });
+  const importData = useMutation({
+    mutationFn: (id: string) => api.post<any>(`/integrations/${id}/import`, {}),
+    onSuccess: (r: any) => {
+      const d = r?.data ?? r;
+      toast({ title: "Import complete", description: `${d?.customers ?? 0} customers and ${d?.items ?? 0} price items imported` });
+    },
+    onError: (e: any) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
+  });
   const connList = Array.isArray(connections) ? connections : (connections as any)?.data ?? [];
 
   return (
@@ -637,9 +653,22 @@ function IntegrationsTab() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {conn?.status === "active" ? (
-                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
-                    </span>
+                    <>
+                      {(integration.id === "xero" || integration.id === "myob") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={importData.isPending}
+                          onClick={() => importData.mutate(integration.id)}
+                          title="Import your existing customers & price list"
+                        >
+                          {importData.isPending ? "Importing…" : "Import data"}
+                        </Button>
+                      )}
+                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
+                      </span>
+                    </>
                   ) : (
                     <Button
                       size="sm"
@@ -662,12 +691,31 @@ function IntegrationsTab() {
 
 /* ─── Lead Sources ─── */
 function LeadSourcesTab() {
+  const qc = useQueryClient();
   const { data: webForm } = useQuery({ queryKey: ["web-form"], queryFn: () => api.get<any>("/leads/web-form") });
   const { data: googleHook } = useQuery({ queryKey: ["google-webhook"], queryFn: () => api.get<any>("/leads/google-ads-webhook") });
+  const { data: metaStatus } = useQuery({ queryKey: ["meta-status"], queryFn: () => api.get<any>("/integrations/meta/status") });
 
   const wf = (webForm?.data ?? webForm) ?? {};
   const gh = (googleHook?.data ?? googleHook) ?? {};
-  const metaUrl: string = gh.webhookUrl ? String(gh.webhookUrl).replace("/webhooks/google", "/webhooks/meta") : "";
+  const ms = (metaStatus?.data ?? metaStatus) ?? {};
+  const [selectedPage, setSelectedPage] = useState<string>("");
+
+  const metaConnect = useMutation({
+    mutationFn: () => api.get<any>("/integrations/meta/connect"),
+    onSuccess: (r: any) => { const url = (r?.data ?? r)?.authUrl; if (url) window.location.href = url; else toast({ title: "Meta isn't configured on the server yet", variant: "destructive" }); },
+    onError: (e: any) => toast({ title: e.message ?? "Meta not configured", variant: "destructive" }),
+  });
+  const metaSubscribe = useMutation({
+    mutationFn: (pageId: string) => api.post<any>("/integrations/meta/subscribe", { pageId }),
+    onSuccess: () => { toast({ title: "Facebook Page connected!" }); qc.invalidateQueries({ queryKey: ["meta-status"] }); },
+    onError: (e: any) => toast({ title: "Couldn't connect Page", description: e.message, variant: "destructive" }),
+  });
+  const metaDisconnect = useMutation({
+    mutationFn: () => api.delete<any>("/integrations/meta"),
+    onSuccess: () => { toast({ title: "Facebook disconnected" }); qc.invalidateQueries({ queryKey: ["meta-status"] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   const copy = (text: string, label: string) => {
     navigator.clipboard?.writeText(text);
@@ -733,20 +781,48 @@ function LeadSourcesTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">📣 Meta (Facebook / Instagram) Lead Ads</CardTitle>
-          <CardDescription>Capture leads from Facebook &amp; Instagram lead-form ads.</CardDescription>
+          <CardDescription>Connect your Facebook Page to capture lead-form ad submissions automatically.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Webhook URL</Label>
-            <div className="flex gap-2">
-              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{metaUrl || "…"}</code>
-              <CopyBtn text={metaUrl} label="Meta webhook URL" />
+          {ms.connected ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                Connected to <strong>{ms.pageName}</strong>
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={() => metaDisconnect.mutate()} disabled={metaDisconnect.isPending}>
+                Disconnect
+              </Button>
             </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Meta needs a one-time connection: a Facebook Page + Meta developer app, with your Page subscribed to this
-            webhook. It&apos;s more involved than the others — we can set it up with you.
-          </p>
+          ) : Array.isArray(ms.pages) && ms.pages.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm">Choose which Facebook Page to connect:</p>
+              <div className="flex gap-2">
+                <select
+                  aria-label="Facebook Page"
+                  value={selectedPage}
+                  onChange={(e) => setSelectedPage(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm border rounded-md"
+                >
+                  <option value="">Select a Page…</option>
+                  {ms.pages.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <Button type="button" size="sm" disabled={!selectedPage || metaSubscribe.isPending} onClick={() => metaSubscribe.mutate(selectedPage)}>
+                  {metaSubscribe.isPending ? "Connecting…" : "Connect Page"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Button type="button" onClick={() => metaConnect.mutate()} disabled={metaConnect.isPending}>
+                {metaConnect.isPending ? "Opening Facebook…" : "Connect Facebook"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                You&apos;ll sign in with Facebook and pick the Page running your lead ads. Requires the platform&apos;s Meta
+                app to be set up (see admin).
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

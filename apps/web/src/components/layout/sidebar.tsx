@@ -27,6 +27,10 @@ const NAV_ITEMS = [
   { href: "/ai", icon: Sparkles, label: "AI Assistant" },
 ];
 
+// Non-tradie ("Lead Manager") accounts get a simplified menu — no jobs/quotes/
+// scheduling/price-book/field/AI; just leads, contacts, messaging, invoicing.
+const NON_TRADIE_HIDDEN = new Set(["/jobs", "/field", "/quotes", "/schedule", "/catalog", "/ai"]);
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -79,7 +83,10 @@ export function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
-          {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+          {(user?.tenant?.accountType === "non_tradie"
+            ? NAV_ITEMS.filter((i) => !NON_TRADIE_HIDDEN.has(i.href))
+            : NAV_ITEMS
+          ).map(({ href, icon: Icon, label }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link

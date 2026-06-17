@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
 import { syncEntityToAccounting } from "../lib/accounting.js";
-import { normalisePhone } from "../lib/utils.js";
+import { normalisePhone, decrypt } from "../lib/utils.js";
 import { notifyBusiness } from "../lib/notify.js";
 import { PLANS, planPriceCents, type PlanId } from "../lib/plans.js";
 import { config } from "../config.js";
@@ -52,9 +52,8 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
 
     if (!leadSourceConfig) return reply.status(200).send("OK");
 
-    // Verify signature with tenant-specific secret
-    const tenantSecret = (leadSourceConfig.config as any)?.appSecret;
-    if (tenantSecret && !verifyMeta(request, tenantSecret)) {
+    // Verify signature with our app secret (single Meta app for the platform)
+    if (config.META_APP_SECRET && !verifyMeta(request, config.META_APP_SECRET)) {
       return reply.status(401).send("Invalid signature");
     }
 
@@ -66,9 +65,10 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
 
         const { leadgen_id: leadgenId, form_id: formId, ad_id: adId } = change.value;
 
-        // Fetch lead data from Meta Graph API
+        // Fetch lead data from Meta Graph API (page token stored encrypted)
         try {
-          const metaToken = (leadSourceConfig.config as any)?.accessToken;
+          const storedToken = (leadSourceConfig.config as any)?.accessToken;
+          const metaToken = storedToken ? decrypt(storedToken) : "";
           const metaRes = await fetch(
             `https://graph.facebook.com/v18.0/${leadgenId}?access_token=${metaToken}`
           );

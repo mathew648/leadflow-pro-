@@ -18,6 +18,7 @@ export interface AuthUser {
     slug: string;
     subscriptionTier: string;
     subscriptionStatus: string;
+    accountType?: string;
     country: string;
     currency: string;
     timezone: string;
@@ -43,9 +44,11 @@ export async function register(body: {
   firstName: string;
   lastName: string;
   businessName: string;
+  abn?: string;
   phone?: string;
   country: "AU" | "NZ";
   tradeTypes: string[];
+  accountType?: "tradie" | "non_tradie";
 }): Promise<{ accessToken: string; user: AuthUser }> {
   const data = await api.post<{ accessToken: string; expiresIn: number; user: AuthUser }>("/auth/register", body);
   setToken(data.accessToken);

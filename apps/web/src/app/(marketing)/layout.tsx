@@ -14,6 +14,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </Link>
           <nav className="hidden sm:flex items-center gap-6 text-sm font-medium text-gray-600">
             <Link href="/features" className="hover:text-gray-900">Features</Link>
+            <Link href="/compare" className="hover:text-gray-900">Why us</Link>
             <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
             <Link href="/login" className="hover:text-gray-900">Log in</Link>
           </nav>
@@ -34,9 +35,12 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Zap className="w-4 h-4 text-brand-600" /> LeadFlow Pro
           </div>
           <p>Built for Australian &amp; New Zealand trades businesses.</p>
-          <div className="flex gap-5">
+          <div className="flex gap-5 flex-wrap">
             <Link href="/features" className="hover:text-gray-900">Features</Link>
+            <Link href="/compare" className="hover:text-gray-900">Why us</Link>
             <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
+            <Link href="/privacy" className="hover:text-gray-900">Privacy</Link>
+            <Link href="/terms" className="hover:text-gray-900">Terms</Link>
             <Link href="/login" className="hover:text-gray-900">Log in</Link>
           </div>
         </div>

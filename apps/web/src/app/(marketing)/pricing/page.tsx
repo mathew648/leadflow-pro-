@@ -5,28 +5,32 @@ export const metadata = { title: "Pricing — LeadFlow Pro" };
 
 const PLANS = [
   {
-    name: "Starter",
-    aud: 99,
-    nzd: 109,
+    name: "Sole Trader",
+    price: 20,
     users: "1 user",
     highlight: false,
-    features: ["Lead capture (web form + manual)", "Quotes & invoices", "Online card payments", "Starter price book", "Email support"],
+    features: ["Lead capture (website, Google, Meta)", "Quotes, jobs & invoices", "Online card payments", "Automated follow-ups", "1 user"],
   },
   {
-    name: "Growth",
-    aud: 249,
-    nzd: 279,
-    users: "Up to 5 users",
+    name: "Company",
+    price: 50,
+    users: "Up to 15 users",
     highlight: true,
-    features: ["Everything in Starter", "Google & Meta lead capture", "Automated email + SMS follow-ups", "Job scheduling & tracking", "Xero sync"],
+    features: ["Everything in Sole Trader", "Team of 3+ (up to 15)", "Scheduling & field app", "Accounting sync (Xero/MYOB)", "Advanced analytics"],
   },
   {
-    name: "Pro",
-    aud: 449,
-    nzd: 499,
+    name: "Website + System",
+    price: 149,
     users: "Up to 15 users",
     highlight: false,
-    features: ["Everything in Growth", "AI lead scoring & assistant", "Advanced analytics", "Custom automations", "Priority support"],
+    features: ["Everything in Company", "Done-for-you website", "Website builder in your panel", "Hosting included", "Leads flow from your site"],
+  },
+  {
+    name: "Lead Manager",
+    price: 10,
+    users: "Not a tradie · up to 3 users",
+    highlight: false,
+    features: ["Capture leads from anywhere", "Chase & mark won", "Contact & follow-up automations", "Invoicing (optional)", "Simple, clean workspace"],
   },
 ];
 
@@ -34,28 +38,28 @@ export default function PricingPage() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-20">
       <div className="text-center max-w-2xl mx-auto">
-        <h1 className="text-4xl font-bold">Simple pricing that grows with you</h1>
-        <p className="mt-3 text-gray-600">14-day free trial on every plan. No credit card to start. Prices in AUD / NZD per month, ex GST.</p>
+        <h1 className="text-4xl font-bold">Simple pricing for every business</h1>
+        <p className="mt-3 text-gray-600">14-day free trial on every plan. No credit card to start. Same price in AUD &amp; NZD, per month.</p>
       </div>
 
-      <div className="mt-14 grid gap-6 lg:grid-cols-3 items-start">
+      <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4 items-start">
         {PLANS.map((p) => (
           <div
             key={p.name}
-            className={`rounded-2xl border p-7 ${p.highlight ? "border-brand-600 shadow-lg ring-1 ring-brand-600" : ""}`}
+            className={`rounded-2xl border p-6 ${p.highlight ? "border-brand-600 shadow-lg ring-1 ring-brand-600" : ""}`}
           >
             {p.highlight && (
               <span className="inline-block rounded-full bg-brand-100 text-brand-700 px-3 py-1 text-xs font-semibold mb-3">
                 Most popular
               </span>
             )}
-            <h2 className="text-xl font-bold">{p.name}</h2>
-            <p className="mt-1 text-sm text-gray-500">{p.users}</p>
+            <h2 className="text-lg font-bold">{p.name}</h2>
+            <p className="mt-1 text-xs text-gray-500">{p.users}</p>
             <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-4xl font-bold">${p.aud}</span>
-              <span className="text-gray-500">AUD/mo</span>
+              <span className="text-4xl font-bold">${p.price}</span>
+              <span className="text-gray-500 text-sm">/mo</span>
             </div>
-            <p className="text-sm text-gray-500">or ${p.nzd} NZD/mo</p>
+            <p className="text-xs text-gray-500">AUD / NZD</p>
             <Link
               href="/register"
               className={`mt-6 block text-center rounded-lg px-4 py-2.5 font-semibold ${
@@ -75,16 +79,9 @@ export default function PricingPage() {
         ))}
       </div>
 
-      {/* Enterprise */}
-      <div className="mt-8 rounded-2xl border bg-gray-50 p-7 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold">Enterprise</h2>
-          <p className="mt-1 text-sm text-gray-600">Unlimited users, custom integrations (MYOB, QuickBooks), onboarding &amp; SLA.</p>
-        </div>
-        <Link href="/register" className="rounded-lg border bg-white px-5 py-2.5 font-semibold hover:bg-gray-50 whitespace-nowrap">
-          Talk to us
-        </Link>
-      </div>
+      <p className="mt-10 text-center text-sm text-gray-500">
+        Need more? <Link href="/register" className="text-brand-700 font-medium hover:underline">Talk to us</Link> about custom &amp; enterprise plans.
+      </p>
     </section>
   );
 }

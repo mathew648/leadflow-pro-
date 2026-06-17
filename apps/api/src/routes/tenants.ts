@@ -20,6 +20,7 @@ const updateSettingsSchema = z.object({
   autoSendReviewRequest: z.boolean().optional(),
   reviewRequestDelayHours: z.number().int().min(0).max(168).optional(),
   googlePlaceId: z.string().optional(),
+  googleReviewUrl: z.string().url().or(z.literal("")).optional(),
   leadAssignmentStrategy: z.enum(["manual", "round_robin", "ai"]).optional(),
 });
 

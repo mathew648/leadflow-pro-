@@ -25,9 +25,10 @@ const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(12, "Minimum 12 characters"),
   businessName: z.string().min(1, "Required"),
+  abn: z.string().optional(),
   phone: z.string().optional(),
   country: z.enum(["AU", "NZ"]),
-  tradeTypes: z.array(z.string()).min(1, "Select at least one trade"),
+  tradeTypes: z.array(z.string()).default([]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -36,18 +37,38 @@ export default function RegisterPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
+  const [accountType, setAccountType] = useState<"tradie" | "non_tradie">("tradie");
   const [step, setStep] = useState(1);
+  const [bizNumber, setBizNumber] = useState("");
+  const [lookupStatus, setLookupStatus] = useState<{ kind: "idle" | "loading" | "ok" | "error"; msg: string }>({ kind: "idle", msg: "" });
 
   const { register, handleSubmit, setValue, watch, trigger, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { country: "AU", tradeTypes: [] },
   });
 
-  // Validate step-1 fields before advancing, so errors (e.g. password < 12 chars)
-  // surface immediately instead of silently blocking the final submit on step 2.
-  async function goToStep2() {
-    const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
-    if (ok) setStep(2);
+  const country = watch("country") ?? "AU";
+  const bizNumberLabel = country === "NZ" ? "NZBN" : "ABN";
+
+  // Auto-fill business name from the ABN/NZBN register (so tradies barely type).
+  async function lookupBusiness() {
+    if (!bizNumber.trim()) return;
+    setLookupStatus({ kind: "loading", msg: "Looking up…" });
+    try {
+      const res = await fetch(`/api/v1/lookup/business?country=${country}&number=${encodeURIComponent(bizNumber.trim())}`);
+      const json = await res.json();
+      if (res.ok && json?.data?.name) {
+        setValue("businessName", json.data.name, { shouldValidate: true });
+        setValue("abn", bizNumber.trim());
+        setLookupStatus({ kind: "ok", msg: `✓ ${json.data.name}` });
+      } else if (res.status === 503) {
+        setLookupStatus({ kind: "error", msg: "Lookup not enabled — type your business name below." });
+      } else {
+        setLookupStatus({ kind: "error", msg: json?.error?.message ?? "Not found — type your business name below." });
+      }
+    } catch {
+      setLookupStatus({ kind: "error", msg: "Lookup unavailable — type your business name below." });
+    }
   }
 
   function toggleTrade(trade: string) {
@@ -62,13 +83,22 @@ export default function RegisterPage() {
     try {
       const { user } = await registerUser({
         ...values,
-        tradeTypes: selectedTrades,
+        tradeTypes: accountType === "tradie" ? selectedTrades : [],
+        accountType,
       });
       setAuth(user);
       router.push("/dashboard");
     } catch (err: any) {
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     }
+  }
+
+  // Tradies pick trades on step 2; non-tradies submit straight from step 1.
+  async function handlePrimary() {
+    const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
+    if (!ok) return;
+    if (accountType === "tradie") setStep(2);
+    else handleSubmit(onSubmit)();
   }
 
   return (
@@ -100,6 +130,25 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit(onSubmit)}>
             {step === 1 && (
               <div className="space-y-4">
+                <div>
+                  <h2 className="font-semibold text-lg">What kind of business?</h2>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAccountType("tradie")}
+                      className={`px-3 py-2.5 rounded-lg border text-sm font-medium ${accountType === "tradie" ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                    >
+                      🔧 Tradie business
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountType("non_tradie")}
+                      className={`px-3 py-2.5 rounded-lg border text-sm font-medium ${accountType === "non_tradie" ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                    >
+                      💼 Other (lead manager)
+                    </button>
+                  </div>
+                </div>
                 <h2 className="font-semibold text-lg">Your details</h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -112,6 +161,25 @@ export default function RegisterPage() {
                     <Input placeholder="Smith" {...register("lastName")} />
                     {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{bizNumberLabel} <span className="text-muted-foreground font-normal">(optional — auto-fills your details)</span></Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={country === "NZ" ? "9429... (13 digits)" : "12 345 678 901"}
+                      value={bizNumber}
+                      onChange={(e) => setBizNumber(e.target.value)}
+                      onBlur={() => { if (bizNumber.trim().length >= 8) lookupBusiness(); }}
+                    />
+                    <Button type="button" variant="outline" onClick={lookupBusiness} disabled={lookupStatus.kind === "loading"}>
+                      {lookupStatus.kind === "loading" ? "…" : "Look up"}
+                    </Button>
+                  </div>
+                  {lookupStatus.msg && (
+                    <p className={`text-xs ${lookupStatus.kind === "ok" ? "text-green-600" : lookupStatus.kind === "error" ? "text-muted-foreground" : "text-muted-foreground"}`}>
+                      {lookupStatus.msg}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Business name</Label>
@@ -141,8 +209,8 @@ export default function RegisterPage() {
                     <Input type="tel" placeholder="+61 4xx xxx xxx" {...register("phone")} />
                   </div>
                 </div>
-                <Button type="button" className="w-full" onClick={goToStep2}>
-                  Next: Select Trade →
+                <Button type="button" className="w-full" onClick={handlePrimary} disabled={isSubmitting}>
+                  {accountType === "tradie" ? "Next: Select Trade →" : (isSubmitting ? "Creating account…" : "Start free trial")}
                 </Button>
               </div>
             )}
@@ -180,7 +248,12 @@ export default function RegisterPage() {
             )}
           </form>
 
-          <div className="mt-4 text-center text-sm text-muted-foreground">
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            By starting your trial you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground">Terms</Link> and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>.
+          </p>
+          <div className="mt-3 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link href="/login" className="text-primary font-medium hover:underline">Sign in</Link>
           </div>

@@ -18,6 +18,11 @@ enum SubscriptionTier {
   growth
   pro
   enterprise
+  // New plan set (2026)
+  sole_trader
+  company
+  website
+  non_tradie
 }
 
 enum SubscriptionStatus {
@@ -211,6 +216,7 @@ model Tenant {
   gstRate         Decimal  @default(0.10) @db.Decimal(5, 4) @map("gst_rate")
   taxNumber       String?  @db.VarChar(50) @map("tax_number")
 
+  accountType         String              @default("tradie") @db.VarChar(20) @map("account_type")
   subscriptionStatus  SubscriptionStatus  @default(trialing) @map("subscription_status")
   trialEndsAt         DateTime?           @map("trial_ends_at")
   onboardedAt         DateTime?           @map("onboarded_at")
@@ -274,6 +280,7 @@ model TenantSettings {
   autoSendReviewRequest Boolean @default(true) @map("auto_send_review_request")
   reviewRequestDelayHours Int   @default(2) @map("review_request_delay_hours")
   googlePlaceId         String? @db.VarChar(200) @map("google_place_id")
+  googleReviewUrl       String? @map("google_review_url")
   facebookPageId        String? @db.VarChar(100) @map("facebook_page_id")
   xeroTenantId          String? @db.VarChar(100) @map("xero_tenant_id")
   stripeAccountId       String? @db.VarChar(100) @map("stripe_account_id")
