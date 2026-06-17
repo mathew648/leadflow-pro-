@@ -43,6 +43,11 @@ const envSchema = z.object({
   XERO_CLIENT_SECRET: z.string().optional(),
   XERO_REDIRECT_URI: z.string().url().optional(),
 
+  MYOB_CLIENT_ID: z.string().optional(),
+  MYOB_CLIENT_SECRET: z.string().optional(),
+  MYOB_REDIRECT_URI: z.string().url().optional(),
+  MYOB_API_KEY: z.string().optional(),
+
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),

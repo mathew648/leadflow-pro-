@@ -576,10 +576,25 @@ function IntegrationsTab() {
     { id: "windcave", name: "Windcave", description: "NZ payment gateway for card processing",                logo: "W" },
   ];
 
+  const connect = useMutation({
+    mutationFn: async (id: string) => {
+      if (id === "xero" || id === "myob") return api.get<any>(`/integrations/${id}/connect`);
+      if (id === "stripe") return api.get<any>("/integrations/stripe/setup");
+      throw new Error("This integration is coming soon");
+    },
+    onSuccess: (r: any) => {
+      const url = r?.authUrl ?? r?.url;
+      if (url) window.location.href = url;
+      else toast({ title: "Couldn't start connection", variant: "destructive" });
+    },
+    onError: (e: any) => toast({ title: e.message ?? "Coming soon" }),
+  });
+  const connList = Array.isArray(connections) ? connections : (connections as any)?.data ?? [];
+
   return (
     <div className="space-y-4">
       {integrations.map((integration) => {
-        const conn = connections?.find?.((c: any) => c.provider === integration.id);
+        const conn = connList.find((c: any) => c.provider === integration.id);
         return (
           <Card key={integration.id}>
             <CardContent className="p-4">
@@ -594,16 +609,18 @@ function IntegrationsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {conn?.isActive ? (
-                    <>
-                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
-                      </span>
-                      <Button size="sm" variant="outline">Settings</Button>
-                    </>
+                  {conn?.status === "active" ? (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
+                    </span>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => toast({ title: "Coming soon", description: `${integration.name} integration is in progress` })}>
-                      Connect
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={connect.isPending || integration.id === "windcave"}
+                      onClick={() => connect.mutate(integration.id)}
+                    >
+                      {integration.id === "windcave" ? "Coming soon" : "Connect"}
                     </Button>
                   )}
                 </div>

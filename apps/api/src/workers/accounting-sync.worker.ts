@@ -3,6 +3,7 @@ import { createWorkerConnection } from "../lib/redis.js";
 import { QUEUES, AccountingSyncPayload } from "../lib/queue.js";
 import { prisma } from "../lib/prisma.js";
 import { getXeroAuth, xeroFetch, type XeroAuth } from "../lib/xero.js";
+import { getMyobAuth, myobCreate, type MyobAuth } from "../lib/myob.js";
 
 const cents = (c: number) => Math.round(c) / 100;
 
@@ -146,13 +147,88 @@ async function pushPayments(auth: XeroAuth, invoiceId: string, xeroInvoiceId: st
   return pushed;
 }
 
+// ── MYOB AccountRight ──
+// NOTE: validated against MYOB's documented API but not yet against a live company file
+// (needs MYOB dev credentials). Cloud company files may additionally require an
+// x-myobapi-cftoken header, configured per tenant — a follow-up before production use.
+
+async function ensureMyobContact(auth: MyobAuth, customerId: string): Promise<string> {
+  const customer = await prisma.customer.findUniqueOrThrow({ where: { id: customerId } });
+  if (customer.myobCardId) return customer.myobCardId;
+
+  const isIndividual = !customer.companyName;
+  const uid = await myobCreate(auth, "/Contact/Customer", {
+    IsIndividual: isIndividual,
+    CompanyName: customer.companyName ?? undefined,
+    FirstName: isIndividual ? customer.firstName ?? undefined : undefined,
+    LastName: isIndividual ? customer.lastName ?? undefined : undefined,
+    IsActive: true,
+    Addresses: [{ Location: 1, Email: customer.email ?? undefined, Phone1: customer.phone ?? undefined }],
+  });
+  if (uid) await prisma.customer.update({ where: { id: customerId }, data: { myobCardId: uid } });
+  return uid ?? "";
+}
+
+async function syncInvoiceToMyob(auth: MyobAuth, invoiceId: string): Promise<string | null> {
+  const invoice = await prisma.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    include: { lineItems: { orderBy: { position: "asc" } } },
+  });
+  if (invoice.accountingSyncedAt) return null; // already pushed (no dedicated MYOB invoice column)
+
+  const customerUid = await ensureMyobContact(auth, invoice.customerId);
+  const uid = await myobCreate(auth, "/Sale/Invoice/Service", {
+    Customer: { UID: customerUid },
+    Number: invoice.invoiceNumber,
+    Date: invoice.issueDate.toISOString(),
+    IsTaxInclusive: false,
+    Lines: invoice.lineItems.map((li) => ({
+      Type: "Transaction",
+      Description: li.description,
+      Total: li.subtotalCents / 100,
+    })),
+  });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { accountingSyncedAt: new Date() } });
+  return uid;
+}
+
 export function startAccountingSyncWorker() {
   const worker = new Worker<AccountingSyncPayload>(
     QUEUES.ACCOUNTING_SYNC,
     async (job: Job<AccountingSyncPayload>) => {
       const { tenantId, provider, entityType, entityId } = job.data;
 
-      // Only Xero is implemented today; other providers are accepted but skipped.
+      // ── MYOB ──
+      if (provider === "myob") {
+        let myob: MyobAuth;
+        try {
+          myob = await getMyobAuth(tenantId);
+        } catch (err: any) {
+          if (err.message === "MYOB not connected") return { skipped: "not connected" };
+          throw err;
+        }
+        try {
+          const result: Record<string, unknown> = {};
+          if ((entityType === "invoice" || entityType === "payment") && entityId) {
+            result.myobInvoiceUid = await syncInvoiceToMyob(myob, entityId);
+          } else if (entityType === "customer" && entityId) {
+            result.myobContactUid = await ensureMyobContact(myob, entityId);
+          }
+          await prisma.accountingConnection.updateMany({
+            where: { tenantId, provider: "myob" },
+            data: { lastSyncAt: new Date(), lastSyncStatus: "success" },
+          });
+          return result;
+        } catch (err: any) {
+          await prisma.accountingConnection.updateMany({
+            where: { tenantId, provider: "myob" },
+            data: { lastSyncAt: new Date(), lastSyncStatus: "error" },
+          });
+          throw err;
+        }
+      }
+
+      // Only Xero + MYOB are implemented; other providers are accepted but skipped.
       if (provider !== "xero") {
         return { skipped: `provider ${provider} not implemented` };
       }

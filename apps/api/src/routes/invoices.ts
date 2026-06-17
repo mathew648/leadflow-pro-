@@ -2,7 +2,8 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { generatePortalToken, calculateLineItem, calculateTotals } from "../lib/utils.js";
-import { enqueueAutomation, enqueueEmail, enqueuePdf, QUEUES, enqueueDelayed, enqueueAccountingSync } from "../lib/queue.js";
+import { enqueueAutomation, enqueueEmail, enqueuePdf, QUEUES, enqueueDelayed } from "../lib/queue.js";
+import { syncEntityToAccounting } from "../lib/accounting.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
 import { notifyBusiness } from "../lib/notify.js";
@@ -288,14 +289,8 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         entityId: id,
       });
 
-      // Mirror the invoice into the connected accounting system (no-op if not connected).
-      await enqueueAccountingSync({
-        tenantId: request.tenantId,
-        provider: "xero",
-        entityType: "invoice",
-        entityId: id,
-        action: "create",
-      });
+      // Mirror the invoice into any connected accounting system (Xero/MYOB; no-op if none).
+      await syncEntityToAccounting(request.tenantId, "invoice", id);
 
       // Schedule overdue reminders
       if (invoice.dueDate) {
@@ -385,14 +380,8 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Push the payment to the connected accounting system (no-op if not connected).
-      await enqueueAccountingSync({
-        tenantId: request.tenantId,
-        provider: "xero",
-        entityType: "payment",
-        entityId: id,
-        action: "create",
-      });
+      // Push the payment to any connected accounting system (Xero/MYOB; no-op if none).
+      await syncEntityToAccounting(request.tenantId, "payment", id);
 
       notifyBusiness(request.tenantId, "payment_received", {
         summary: `Payment of <b>$${(actualAmount / 100).toFixed(2)}</b> recorded for invoice ${invoice.invoiceNumber}${newStatus === "paid" ? " (now fully paid)" : ""}.`,

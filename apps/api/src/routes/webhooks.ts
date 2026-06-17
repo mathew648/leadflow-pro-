@@ -2,7 +2,8 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../lib/prisma.js";
-import { enqueueAutomation, enqueueAIScoring, enqueueAccountingSync } from "../lib/queue.js";
+import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
+import { syncEntityToAccounting } from "../lib/accounting.js";
 import { normalisePhone } from "../lib/utils.js";
 import { notifyBusiness } from "../lib/notify.js";
 import { PLANS, planPriceCents, type PlanId } from "../lib/plans.js";
@@ -178,14 +179,8 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
                 }),
               ]);
 
-              // Push the payment to the connected accounting system (no-op if not connected).
-              await enqueueAccountingSync({
-                tenantId,
-                provider: "xero",
-                entityType: "payment",
-                entityId: invoiceId,
-                action: "create",
-              });
+              // Push the payment to any connected accounting system (Xero/MYOB; no-op if none).
+              await syncEntityToAccounting(tenantId, "payment", invoiceId);
 
               notifyBusiness(tenantId, "payment_received", {
                 summary: `Payment of <b>$${(amountCents / 100).toFixed(2)}</b> received for invoice ${invoice.invoiceNumber}.`,
