@@ -28,9 +28,9 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lfp/db exec prisma generate && pnpm --filter api build
+    buildCommand: npm install -g corepack@latest && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lfp/db exec prisma generate && pnpm --filter api build
     # Free tier has no preDeployCommand, so sync the schema on boot (idempotent — no-op once tables exist).
-    startCommand: pnpm --filter @lfp/db exec prisma db push --skip-generate --accept-data-loss && pnpm --filter api start
+    startCommand: corepack enable && pnpm --filter @lfp/db exec prisma db push --skip-generate --accept-data-loss && pnpm --filter api start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -68,8 +68,8 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter web build
-    startCommand: pnpm --filter web start -- -p $PORT
+    buildCommand: npm install -g corepack@latest && corepack enable && pnpm install --frozen-lockfile && pnpm --filter web build
+    startCommand: corepack enable && pnpm --filter web start -- -p $PORT
     healthCheckPath: /login
     envVars:
       - key: NODE_ENV
