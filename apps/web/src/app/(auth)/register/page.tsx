@@ -248,7 +248,12 @@ export default function RegisterPage() {
             )}
           </form>
 
-          <div className="mt-4 text-center text-sm text-muted-foreground">
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            By starting your trial you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground">Terms</Link> and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>.
+          </p>
+          <div className="mt-3 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link href="/login" className="text-primary font-medium hover:underline">Sign in</Link>
           </div>
