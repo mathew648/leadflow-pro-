@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Zap, Eye, EyeOff } from "lucide-react";
+import { Zap, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,11 +42,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-600 to-brand-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-brand-100 hover:text-white mb-4">
+          <ArrowLeft className="w-4 h-4" /> Back to website
+        </Link>
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4">
+          <Link href="/" className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4 hover:bg-white/30 transition-colors" aria-label="LeadFlow Pro home">
             <Zap className="w-8 h-8 text-white" />
-          </div>
+          </Link>
           <h1 className="text-3xl font-bold text-white">LeadFlow Pro</h1>
           <p className="text-brand-100 mt-1">Sign in to your account</p>
         </div>
