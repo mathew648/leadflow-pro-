@@ -61,6 +61,10 @@ const envSchema = z.object({
   // Comma-separated emails allowed into the platform admin panel (super-admins).
   PLATFORM_ADMIN_EMAILS: z.string().default(""),
 
+  // Business-register lookups (auto-fill business details at signup).
+  ABR_GUID: z.string().optional(),       // Australian Business Register ABN Lookup GUID (free)
+  NZBN_API_KEY: z.string().optional(),   // NZBN API subscription key
+
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("development"),
 });

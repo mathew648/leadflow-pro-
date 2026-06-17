@@ -44,6 +44,7 @@ export async function register(body: {
   firstName: string;
   lastName: string;
   businessName: string;
+  abn?: string;
   phone?: string;
   country: "AU" | "NZ";
   tradeTypes: string[];

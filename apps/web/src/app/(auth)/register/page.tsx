@@ -25,6 +25,7 @@ const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(12, "Minimum 12 characters"),
   businessName: z.string().min(1, "Required"),
+  abn: z.string().optional(),
   phone: z.string().optional(),
   country: z.enum(["AU", "NZ"]),
   tradeTypes: z.array(z.string()).default([]),
@@ -38,11 +39,37 @@ export default function RegisterPage() {
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [accountType, setAccountType] = useState<"tradie" | "non_tradie">("tradie");
   const [step, setStep] = useState(1);
+  const [bizNumber, setBizNumber] = useState("");
+  const [lookupStatus, setLookupStatus] = useState<{ kind: "idle" | "loading" | "ok" | "error"; msg: string }>({ kind: "idle", msg: "" });
 
   const { register, handleSubmit, setValue, watch, trigger, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { country: "AU", tradeTypes: [] },
   });
+
+  const country = watch("country") ?? "AU";
+  const bizNumberLabel = country === "NZ" ? "NZBN" : "ABN";
+
+  // Auto-fill business name from the ABN/NZBN register (so tradies barely type).
+  async function lookupBusiness() {
+    if (!bizNumber.trim()) return;
+    setLookupStatus({ kind: "loading", msg: "Looking up…" });
+    try {
+      const res = await fetch(`/api/v1/lookup/business?country=${country}&number=${encodeURIComponent(bizNumber.trim())}`);
+      const json = await res.json();
+      if (res.ok && json?.data?.name) {
+        setValue("businessName", json.data.name, { shouldValidate: true });
+        setValue("abn", bizNumber.trim());
+        setLookupStatus({ kind: "ok", msg: `✓ ${json.data.name}` });
+      } else if (res.status === 503) {
+        setLookupStatus({ kind: "error", msg: "Lookup not enabled — type your business name below." });
+      } else {
+        setLookupStatus({ kind: "error", msg: json?.error?.message ?? "Not found — type your business name below." });
+      }
+    } catch {
+      setLookupStatus({ kind: "error", msg: "Lookup unavailable — type your business name below." });
+    }
+  }
 
   function toggleTrade(trade: string) {
     const next = selectedTrades.includes(trade)
@@ -134,6 +161,25 @@ export default function RegisterPage() {
                     <Input placeholder="Smith" {...register("lastName")} />
                     {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{bizNumberLabel} <span className="text-muted-foreground font-normal">(optional — auto-fills your details)</span></Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={country === "NZ" ? "9429... (13 digits)" : "12 345 678 901"}
+                      value={bizNumber}
+                      onChange={(e) => setBizNumber(e.target.value)}
+                      onBlur={() => { if (bizNumber.trim().length >= 8) lookupBusiness(); }}
+                    />
+                    <Button type="button" variant="outline" onClick={lookupBusiness} disabled={lookupStatus.kind === "loading"}>
+                      {lookupStatus.kind === "loading" ? "…" : "Look up"}
+                    </Button>
+                  </div>
+                  {lookupStatus.msg && (
+                    <p className={`text-xs ${lookupStatus.kind === "ok" ? "text-green-600" : lookupStatus.kind === "error" ? "text-muted-foreground" : "text-muted-foreground"}`}>
+                      {lookupStatus.msg}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Business name</Label>
