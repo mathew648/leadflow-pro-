@@ -57,6 +57,9 @@ const envSchema = z.object({
 
   ENABLE_AI_FEATURES: z.string().transform((v) => v === "true").default("true"),
 
+  // Comma-separated emails allowed into the platform admin panel (super-admins).
+  PLATFORM_ADMIN_EMAILS: z.string().default(""),
+
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("development"),
 });

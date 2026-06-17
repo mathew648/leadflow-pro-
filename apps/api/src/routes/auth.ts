@@ -9,6 +9,7 @@ import { writeAuditLog, auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
 import { seedDefaultAutomations } from "../lib/default-automations.js";
 import { seedStarterCatalog } from "../lib/default-catalog.js";
+import { isPlatformAdmin } from "../lib/platform-admin.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -134,6 +135,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             lastName: user.lastName,
             role: user.role,
             avatarUrl: user.avatarUrl,
+            isPlatformAdmin: isPlatformAdmin(user.email),
             tenant: {
               id: user.tenant.id,
               name: user.tenant.businessName,
@@ -482,6 +484,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           role: user.role,
           avatarUrl: user.avatarUrl,
           tradeTypes: user.tradeTypes,
+          isPlatformAdmin: isPlatformAdmin(user.email),
           tenant: {
             id: user.tenant.id,
             name: user.tenant.businessName,
