@@ -38,10 +38,17 @@ export default function RegisterPage() {
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [step, setStep] = useState(1);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, watch, trigger, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { country: "AU", tradeTypes: [] },
   });
+
+  // Validate step-1 fields before advancing, so errors (e.g. password < 12 chars)
+  // surface immediately instead of silently blocking the final submit on step 2.
+  async function goToStep2() {
+    const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
+    if (ok) setStep(2);
+  }
 
   function toggleTrade(trade: string) {
     const next = selectedTrades.includes(trade)
@@ -134,7 +141,7 @@ export default function RegisterPage() {
                     <Input type="tel" placeholder="+61 4xx xxx xxx" {...register("phone")} />
                   </div>
                 </div>
-                <Button type="button" className="w-full" onClick={() => setStep(2)}>
+                <Button type="button" className="w-full" onClick={goToStep2}>
                   Next: Select Trade →
                 </Button>
               </div>
