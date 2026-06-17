@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Topbar } from "@/components/layout/topbar";
@@ -615,9 +616,79 @@ function IntegrationsTab() {
   );
 }
 
+/* ─── Billing ─── */
+function BillingTab() {
+  const { data: tenantData } = useQuery({ queryKey: ["tenant"], queryFn: () => api.get<any>("/tenant") });
+  const { data: plans } = useQuery({ queryKey: ["billing-plans"], queryFn: () => api.get<any>("/billing/plans") });
+  const sub = tenantData?.subscription ?? tenantData?.data?.subscription;
+  const currentTier = sub?.tier ?? "starter";
+  const status = sub?.status ?? "trialing";
+  const planList: any[] = Array.isArray(plans) ? plans : plans?.data ?? [];
+
+  const checkout = useMutation({
+    mutationFn: (plan: string) => api.post<any>("/billing/checkout", { plan }),
+    onSuccess: (r: any) => { if (r?.url) window.location.href = r.url; },
+    onError: (e: any) => toast({ title: "Couldn't start checkout", description: e.message, variant: "destructive" }),
+  });
+  const portal = useMutation({
+    mutationFn: () => api.post<any>("/billing/portal", {}),
+    onSuccess: (r: any) => { if (r?.url) window.location.href = r.url; },
+    onError: (e: any) => toast({ title: "Couldn't open billing portal", description: e.message, variant: "destructive" }),
+  });
+
+  const money = (cents: number, currency: string) =>
+    new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader>
+          <CardTitle>Billing & Subscription</CardTitle>
+          <CardDescription>
+            Current plan: <span className="font-semibold capitalize">{currentTier}</span>
+            {" · "}<span className="capitalize">{status}</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {planList.map((p) => {
+              const isCurrent = p.id === currentTier && status === "active";
+              return (
+                <div key={p.id} className={cn("rounded-xl border p-5", isCurrent && "ring-1 ring-primary border-primary")}>
+                  <h3 className="font-semibold text-lg">{p.name}</h3>
+                  <p className="mt-1 text-2xl font-bold">{money(p.priceCents, p.currency)}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Up to {p.maxUsers} user{p.maxUsers === 1 ? "" : "s"}</p>
+                  <Button
+                    className="w-full mt-4"
+                    variant={isCurrent ? "outline" : "default"}
+                    disabled={isCurrent || checkout.isPending}
+                    onClick={() => checkout.mutate(p.id)}
+                  >
+                    {isCurrent ? "Current plan" : checkout.isPending ? "Redirecting…" : "Choose plan"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          {sub?.stripeCustomerId && (
+            <Button variant="outline" size="sm" className="mt-5" onClick={() => portal.mutate()} disabled={portal.isPending}>
+              Manage billing & payment method
+            </Button>
+          )}
+          <p className="text-xs text-muted-foreground mt-4">
+            Secure checkout by Stripe. You can cancel anytime from the billing portal.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 /* ─── Page ─── */
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("profile");
+  const searchParams = useSearchParams();
+  const initialTab = TABS.some((t) => t.id === searchParams.get("tab")) ? searchParams.get("tab")! : "profile";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   return (
     <div>
@@ -661,14 +732,7 @@ export default function SettingsPage() {
           {activeTab === "documents"    && <DocumentsTab />}
           {activeTab === "pipeline"     && <PipelineTab />}
           {activeTab === "users"        && <TeamTab />}
-          {activeTab === "billing"      && (
-            <Card>
-              <CardHeader><CardTitle>Billing & Subscription</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Billing management coming soon. Contact support to change your plan.</p>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === "billing"      && <BillingTab />}
           {activeTab === "integrations" && <IntegrationsTab />}
         </div>
       </div>

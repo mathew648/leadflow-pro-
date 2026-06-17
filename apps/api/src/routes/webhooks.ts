@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { enqueueAutomation, enqueueAIScoring, enqueueAccountingSync } from "../lib/queue.js";
 import { normalisePhone } from "../lib/utils.js";
 import { notifyBusiness } from "../lib/notify.js";
+import { PLANS, planPriceCents, type PlanId } from "../lib/plans.js";
 import { config } from "../config.js";
 import Stripe from "stripe";
 
@@ -200,6 +201,31 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
                 });
               }
             }
+          }
+          break;
+        }
+
+        case "checkout.session.completed": {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const tenantId = session.metadata?.tenantId;
+          const plan = session.metadata?.plan as PlanId | undefined;
+          if (tenantId && plan && session.subscription) {
+            const planDef = PLANS[plan];
+            const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { country: true } });
+            await prisma.subscription.update({
+              where: { tenantId },
+              data: {
+                tier: plan,
+                status: "active",
+                stripeSubscriptionId: String(session.subscription),
+                stripeCustomerId: session.customer ? String(session.customer) : undefined,
+                basePriceCents: planPriceCents(planDef, tenant?.country ?? "AU"),
+                maxUsers: planDef.maxUsers,
+                maxLeadsPerMonth: planDef.maxLeadsPerMonth,
+                storageGb: planDef.storageGb,
+              },
+            });
+            await prisma.tenant.update({ where: { id: tenantId }, data: { subscriptionStatus: "active" } });
           }
           break;
         }

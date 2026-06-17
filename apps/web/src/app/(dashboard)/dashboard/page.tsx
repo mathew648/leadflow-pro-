@@ -121,7 +121,7 @@ export default function DashboardPage() {
               <p className="text-xs text-brand-600">Upgrade to keep all your data and unlock unlimited leads</p>
             </div>
           </div>
-          <Button size="sm" className="flex-shrink-0">Upgrade now</Button>
+          <Link href="/settings?tab=billing"><Button size="sm" className="flex-shrink-0">Upgrade now</Button></Link>
         </div>
 
         {/* KPI grid */}
