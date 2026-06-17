@@ -13,11 +13,12 @@ import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn, initials } from "@/lib/utils";
 import { useRef } from "react";
-import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2, Upload } from "lucide-react";
+import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2, Upload, Inbox, Copy } from "lucide-react";
 
 const TABS = [
   { id: "profile",   label: "Profile",     icon: User },
   { id: "business",  label: "Business",    icon: Building2 },
+  { id: "leadsources", label: "Lead Sources", icon: Inbox },
   { id: "documents", label: "Documents",   icon: Settings2 },
   { id: "pipeline",  label: "Pipeline",    icon: GitBranch },
   { id: "users",     label: "Team",        icon: Users },
@@ -36,6 +37,16 @@ function ProfileTab() {
     mutationFn: (data: any) => api.patch("/auth/me", data),
     onSuccess: () => toast({ title: "Profile updated" }),
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const testEmail = useMutation({
+    mutationFn: () => api.post<any>("/tenant/test-email", {}),
+    onSuccess: (r: any) => {
+      const d = r?.data ?? r;
+      if (d?.sent) toast({ title: "Test email sent", description: `Check the inbox for ${d.to}` });
+      else toast({ title: "Email not sent", description: d?.reason ?? "Email isn't configured yet", variant: "destructive" });
+    },
+    onError: (e: any) => toast({ title: "Couldn't send test", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -71,6 +82,22 @@ function ProfileTab() {
           </div>
           <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save changes</Button>
         </form>
+
+        <div className="border-t pt-4">
+          <Label className="text-sm font-semibold">Email delivery</Label>
+          <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+            Send yourself a test to confirm quotes, invoices &amp; auto-replies can be emailed.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => testEmail.mutate()}
+            disabled={testEmail.isPending}
+          >
+            {testEmail.isPending ? "Sending…" : "Send test email"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -633,6 +660,99 @@ function IntegrationsTab() {
   );
 }
 
+/* ─── Lead Sources ─── */
+function LeadSourcesTab() {
+  const { data: webForm } = useQuery({ queryKey: ["web-form"], queryFn: () => api.get<any>("/leads/web-form") });
+  const { data: googleHook } = useQuery({ queryKey: ["google-webhook"], queryFn: () => api.get<any>("/leads/google-ads-webhook") });
+
+  const wf = (webForm?.data ?? webForm) ?? {};
+  const gh = (googleHook?.data ?? googleHook) ?? {};
+  const metaUrl: string = gh.webhookUrl ? String(gh.webhookUrl).replace("/webhooks/google", "/webhooks/meta") : "";
+
+  const copy = (text: string, label: string) => {
+    navigator.clipboard?.writeText(text);
+    toast({ title: `${label} copied to clipboard` });
+  };
+
+  const CopyBtn = ({ text, label }: { text: string; label: string }) => (
+    <Button type="button" variant="outline" size="sm" onClick={() => copy(text, label)} disabled={!text}>
+      <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy
+    </Button>
+  );
+
+  const codeBox = "block w-full text-xs font-mono bg-muted rounded-md p-3 overflow-x-auto whitespace-pre";
+
+  return (
+    <div className="space-y-5">
+      {/* Website form */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">🌐 Your website form</CardTitle>
+          <CardDescription>Paste this onto your website — every submission becomes a lead with an instant auto-reply.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <pre className={codeBox}>{wf.embedSnippet ?? "Loading…"}</pre>
+          <div className="flex items-center gap-2">
+            <CopyBtn text={wf.embedSnippet ?? ""} label="Form code" />
+            {wf.lastEventAt && <span className="text-xs text-muted-foreground">Last lead received: {new Date(wf.lastEventAt).toLocaleString("en-AU")}</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">Add it to your contact page or footer. Works on any website (Wix, Squarespace, WordPress, custom).</p>
+        </CardContent>
+      </Card>
+
+      {/* Google Ads */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">🔍 Google Ads Lead Forms</CardTitle>
+          <CardDescription>Capture leads from Google Lead Form ads automatically.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Webhook URL</Label>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{gh.webhookUrl ?? "…"}</code>
+              <CopyBtn text={gh.webhookUrl ?? ""} label="Webhook URL" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Key</Label>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{gh.googleKey ?? "…"}</code>
+              <CopyBtn text={gh.googleKey ?? ""} label="Key" />
+            </div>
+          </div>
+          <ol className="text-xs text-muted-foreground list-decimal pl-4 space-y-1">
+            <li>In Google Ads, open your Lead Form asset → <strong>Data &amp; integration → Webhook</strong>.</li>
+            <li>Paste the <strong>Webhook URL</strong> and <strong>Key</strong> above.</li>
+            <li>Click <strong>Send test data</strong> — a test lead should appear in your Leads.</li>
+          </ol>
+        </CardContent>
+      </Card>
+
+      {/* Meta */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">📣 Meta (Facebook / Instagram) Lead Ads</CardTitle>
+          <CardDescription>Capture leads from Facebook &amp; Instagram lead-form ads.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Webhook URL</Label>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{metaUrl || "…"}</code>
+              <CopyBtn text={metaUrl} label="Meta webhook URL" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Meta needs a one-time connection: a Facebook Page + Meta developer app, with your Page subscribed to this
+            webhook. It&apos;s more involved than the others — we can set it up with you.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 /* ─── Billing ─── */
 function BillingTab() {
   const { data: tenantData } = useQuery({ queryKey: ["tenant"], queryFn: () => api.get<any>("/tenant") });
@@ -746,6 +866,7 @@ export default function SettingsPage() {
         <div className="flex-1 min-w-0">
           {activeTab === "profile"      && <ProfileTab />}
           {activeTab === "business"     && <BusinessTab />}
+          {activeTab === "leadsources"  && <LeadSourcesTab />}
           {activeTab === "documents"    && <DocumentsTab />}
           {activeTab === "pipeline"     && <PipelineTab />}
           {activeTab === "users"        && <TeamTab />}
