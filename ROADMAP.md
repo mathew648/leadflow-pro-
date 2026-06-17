@@ -5,6 +5,33 @@ Legend: ✅ done · 🔜 next · ⬜ pending · 🔒 blocked (needs your input/c
 
 ---
 
+## 📌 RESUME HERE (last session: June 2026)
+
+**Status:** Platform is LIVE on Render (Starter plan). All work committed on branch
+`integration/full-platform` — **13 commits ahead of `main`. Merge the PR to deploy the latest:**
+https://github.com/mathew648/leadflow-pro-/pull/new/integration/full-platform
+
+**Shipped this session:** ABN/NZBN lookup · Xero/MYOB import · customer CSV import · installable PWA ·
+Google-review automation · Privacy + Terms pages · /compare marketing page · "Back to website" links on auth pages.
+
+**🔴 Top pending build (next up): TEAM INVITE-ACCEPTANCE FLOW**
+Right now invited teammates **cannot log in** — invite creates the user but sends no email and sets no
+password (`routes/tenants.ts` line ~203 `// TODO: Send invitation email`; login requires a passwordHash).
+Need: invite email w/ token → `/accept-invite` page → set password → login. **Blocks the Company plan + client team test.**
+
+**🟡 Known issue to confirm:** a tester saw "Sign in just loading." Server verified fast/healthy on Starter,
+so it's a client-side **stale service worker / cache**. Unconfirmed — test in incognito; if it works there,
+clear the SW. If the PWA SW keeps causing trouble, consider an auto-update prompt or temporarily disabling it.
+
+**🔒 Your dashboard actions (no code):**
+- Set Render env keys to switch features on: `RESEND_API_KEY` (+ verify a sending domain), `STRIPE_SECRET_KEY`
+  (+ webhook secret), `ABR_GUID` / `NZBN_API_KEY` (ABN/NZBN lookup), `XERO_*` / `MYOB_*`, `META_*`.
+- Confirm `API_URL` = `https://leadflow-pro-api-37bj.onrender.com` in Render.
+- Start Meta **Business Verification + App Review** (slow; needed for clients to connect their own Page).
+- Get Privacy/Terms reviewed by a lawyer; replace placeholder contact/entity details.
+
+---
+
 ## Phase 0 — Built so far ✅
 - ✅ Lead capture: website form (open CORS, embeddable), Google Ads webhook, Meta webhook + self-serve connect flow, manual
 - ✅ Automations engine + default pack (new-lead reply, quote follow-up, quote-approved) + fixed rendering bugs
@@ -22,30 +49,29 @@ Legend: ✅ done · 🔜 next · ⬜ pending · 🔒 blocked (needs your input/c
 - 🔒 **Fix `API_URL` in Render** → `https://leadflow-pro-api-37bj.onrender.com` (lead-source URLs depend on it)
 - 🔒 **Verify live integrations with real creds**: Stripe checkout+webhook, Xero push, MYOB push, Meta connect, email domain
 - 🔒 **Verify a sending domain in Resend** (so customer emails actually deliver, not just to yourself)
-- ⬜ **Upgrade off free tier** (api/web/Redis/DB → Starter): kills cold-start errors + free-DB-deletion risk
+- ⬜ **Upgrade off free tier** (api/web/Redis/DB → Starter): kills cold-start errors + free-DB-deletion risk — _API+web on Starter; check Redis/DB_
 - ⬜ **Consolidate to a clean release flow**: merge integration → main, set up CI (typecheck/build on PR), staging vs prod
 - ⬜ **Error monitoring + uptime**: confirm Sentry DSN set; add an uptime/health alert
-- ⬜ **Privacy Policy + Terms pages** (`/privacy`, `/terms`) — required for Meta review + customer trust
+- ✅ **Privacy Policy + Terms pages** (`/privacy`, `/terms`)
 - ⬜ **Automated tests** for the core flow (lead→quote→invoice→pay) so we ship fast without breakage
 
 ## Phase 2 — Onboarding engine (the growth flywheel — highest ROI build)
-- 🔜 **ABN/NZBN auto-lookup** at signup → auto-fill business name/address/GST (minimal typing)
-- 🔜 **Import from Xero/MYOB on signup** → pull existing customers, price items, invoices (arrive with data)
-- ⬜ **"Switch from ServiceM8/Tradify" importer** (CSV/API) → migrate competitors' customers in 1 click
+- ✅ **ABN/NZBN auto-lookup** at signup (needs `ABR_GUID`/`NZBN_API_KEY` to go live)
+- ✅ **Import from Xero/MYOB** → "Import data" button in Settings (pull customers + price items)
+- ✅ **CSV importer (switch from another system)** → "Import customers" on Customers page
 - ⬜ **AI setup assistant** → "tell me your trade" → configures pipeline, automations, quote templates
 - ⬜ **SMS/phone-first signup** → start by texting a number (tradies live on phones)
 - ⬜ **Concierge onboarding** for Company/Website plans (human or AI-guided setup)
 
 ## Phase 3 — Daily-use product (retention + competitive parity)
-- ⬜ **Mobile app / installable PWA** → tradies are on phones; exploits ServiceM8's weak Android
-- ⬜ **Offline mode** → on-site dead zones; Tradify lacks this
-- ⬜ **Reviews / reputation automation** → auto-request Google reviews after a job (huge for trades)
-- ⬜ **Push notifications** (new lead, quote signed, payment) to the phone
+- ✅ **Installable PWA** (manifest, icons, service worker, offline page) — installable iOS + Android
+- ⬜ **Offline mode (data)** → work offline + sync later; on-site dead zones (Tradify lacks this)
+- ✅ **Reviews / reputation automation** → auto-request Google reviews after a job (needs review link + email/SMS keys)
+- ⬜ **Push notifications** (new lead, quote signed, payment) to the installed PWA
 - ⬜ **Supplier catalog price-book import** (Reece/Tradelink/Ideal Electrical) — AroFlo's strength
 
 ## Phase 4 — Growth & marketing wedges
-- ⬜ **Anti-hipages landing page** ("stop paying for shared leads — capture your own")
-- ⬜ **Flat-vs-per-user pricing comparison page** ("15 users for $50, not $780")
+- ✅ **/compare page** (own-your-leads anti-marketplace + flat-vs-per-user pricing wedges)
 - ⬜ **Referral program** ("refer a mate, both get a month free")
 - ⬜ **Partner/reseller program** (web agencies resell the Website plan; supplier & association deals)
 - ⬜ **SEO content hub** ("[trade] software", "tradie CRM", migration guides)
