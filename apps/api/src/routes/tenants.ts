@@ -1,6 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { config } from "../config.js";
+import { sendBrandedEmail } from "../lib/mailer.js";
 
 const updateSettingsSchema = z.object({
   invoicePrefix: z.string().max(20).optional(),
@@ -200,8 +202,29 @@ export default async function tenantsRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // TODO: Send invitation email
-      return reply.status(201).send({ data: user });
+      // Signed, self-expiring invite token (no DB column needed) → accept-invite page.
+      const inviteToken = fastify.jwt.sign(
+        { sub: user.id, tid: request.tenantId, purpose: "invite" } as any,
+        { expiresIn: 60 * 60 * 24 * 7 }
+      );
+      const acceptUrl = `${config.APP_URL}/accept-invite?token=${inviteToken}`;
+
+      const tenant = await prisma.tenant.findUnique({ where: { id: request.tenantId } });
+      let emailSent = false;
+      if (tenant) {
+        const res = await sendBrandedEmail({
+          tenantId: request.tenantId,
+          tenant,
+          to: user.email,
+          subject: `You're invited to ${tenant.businessName} on LeadFlow Pro`,
+          template: "team_invite",
+          data: { firstName: user.firstName, inviterBusiness: tenant.businessName, role: body.role, acceptUrl },
+        }).catch(() => null);
+        emailSent = Boolean(res && (res as any).id && (res as any).id !== "skipped-no-resend-key");
+      }
+
+      // Return the link too, so the owner can share it manually if email isn't configured.
+      return reply.status(201).send({ data: { ...user, acceptUrl, emailSent } });
     }
   );
 
