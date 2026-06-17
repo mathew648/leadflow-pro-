@@ -2,7 +2,14 @@ import { Resend } from "resend";
 import { config } from "../config.js";
 import type { EmailPayload } from "../lib/queue.js";
 
-const resend = new Resend(config.RESEND_API_KEY);
+// Lazily create the Resend client. Resend throws if constructed without an API key,
+// so when none is configured we skip sending instead of crashing the server at startup.
+let _resend: Resend | null = null;
+function getResend(): Resend | null {
+  if (!config.RESEND_API_KEY) return null;
+  if (!_resend) _resend = new Resend(config.RESEND_API_KEY);
+  return _resend;
+}
 
 const FROM = config.EMAIL_FROM;
 
@@ -188,6 +195,12 @@ export async function sendEmail(payload: EmailPayload): Promise<{ id: string }> 
     const rendered = renderTemplate(payload.template ?? "custom", payload.data ?? {});
     html = rendered.html;
     text = rendered.text;
+  }
+
+  const resend = getResend();
+  if (!resend) {
+    console.warn("[email] RESEND_API_KEY not set — skipping email to", payload.to);
+    return { id: "skipped-no-resend-key" };
   }
 
   const result = await resend.emails.send({
