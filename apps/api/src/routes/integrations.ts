@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { encrypt } from "../lib/utils.js";
+import { MYOB_AUTH_URL, MYOB_API_BASE } from "../lib/myob.js";
 import { config } from "../config.js";
 import Stripe from "stripe";
 
@@ -147,6 +148,119 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
       const { enqueueAccountingSync } = await import("../lib/queue.js");
       await enqueueAccountingSync({ tenantId: request.tenantId, provider: "xero", fullSync: false });
 
+      return { data: { queued: true } };
+    }
+  );
+
+  // ── MYOB (mirrors Xero) ──
+
+  // GET /api/v1/integrations/myob/connect
+  fastify.get(
+    "/integrations/myob/connect",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const state = Buffer.from(JSON.stringify({ tenantId: request.tenantId, userId: request.userId, ts: Date.now() })).toString("base64url");
+      const params = new URLSearchParams({
+        client_id: config.MYOB_CLIENT_ID ?? "",
+        redirect_uri: config.MYOB_REDIRECT_URI ?? "",
+        response_type: "code",
+        scope: "CompanyFile",
+        state,
+      });
+      return { data: { authUrl: `${MYOB_AUTH_URL}?${params}` } };
+    }
+  );
+
+  // GET /api/v1/integrations/myob/callback
+  fastify.get("/integrations/myob/callback", async (request, reply) => {
+    const query = z.object({ code: z.string(), state: z.string() }).parse(request.query);
+    let stateData: { tenantId: string };
+    try {
+      stateData = JSON.parse(Buffer.from(query.state, "base64url").toString());
+    } catch {
+      return reply.status(400).send({ error: { code: "INVALID_STATE", message: "Invalid state" } });
+    }
+
+    const tokenRes = await fetch("https://secure.myob.com/oauth2/v1/authorize", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: query.code,
+        redirect_uri: config.MYOB_REDIRECT_URI ?? "",
+        client_id: config.MYOB_CLIENT_ID ?? "",
+        client_secret: config.MYOB_CLIENT_SECRET ?? "",
+      }),
+    });
+    if (!tokenRes.ok) {
+      return reply.status(400).send({ error: { code: "TOKEN_ERROR", message: "Failed to get MYOB tokens" } });
+    }
+    const tokens = (await tokenRes.json()) as any;
+
+    // List the user's company files; use the first one.
+    const cfRes = await fetch(MYOB_API_BASE, {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        "x-myobapi-key": config.MYOB_CLIENT_ID ?? "",
+        "x-myobapi-version": "v2",
+        Accept: "application/json",
+      },
+    });
+    const companyFiles = (await cfRes.json().catch(() => [])) as any[];
+    const cf = Array.isArray(companyFiles) ? companyFiles[0] : companyFiles?.[0];
+
+    await prisma.accountingConnection.upsert({
+      where: { tenantId_provider: { tenantId: stateData.tenantId, provider: "myob" } },
+      create: {
+        tenantId: stateData.tenantId,
+        provider: "myob",
+        status: "active",
+        accessToken: encrypt(tokens.access_token),
+        refreshToken: encrypt(tokens.refresh_token),
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        providerOrgId: cf?.Uri,
+        providerOrgName: cf?.Name,
+        lastSyncStatus: "idle",
+      },
+      update: {
+        status: "active",
+        accessToken: encrypt(tokens.access_token),
+        refreshToken: encrypt(tokens.refresh_token),
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        providerOrgId: cf?.Uri,
+        providerOrgName: cf?.Name,
+      },
+    });
+
+    return reply.redirect(`${config.APP_URL}/settings?myob=connected`);
+  });
+
+  // DELETE /api/v1/integrations/myob
+  fastify.delete(
+    "/integrations/myob",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      await prisma.accountingConnection.updateMany({
+        where: { tenantId: request.tenantId, provider: "myob" },
+        data: { status: "disconnected" },
+      });
+      return { data: { disconnected: true } };
+    }
+  );
+
+  // POST /api/v1/integrations/myob/sync
+  fastify.post(
+    "/integrations/myob/sync",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request, reply) => {
+      const connection = await prisma.accountingConnection.findFirst({
+        where: { tenantId: request.tenantId, provider: "myob", status: "active" },
+      });
+      if (!connection) {
+        return reply.status(404).send({ error: { code: "NOT_CONNECTED", message: "MYOB not connected" } });
+      }
+      const { enqueueAccountingSync } = await import("../lib/queue.js");
+      await enqueueAccountingSync({ tenantId: request.tenantId, provider: "myob", fullSync: false });
       return { data: { queued: true } };
     }
   );

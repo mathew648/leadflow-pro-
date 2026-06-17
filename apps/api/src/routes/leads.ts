@@ -1,9 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { nanoid } from "nanoid";
 import { prisma } from "../lib/prisma.js";
-import { normalisePhone, generateNumber, encodeCursor, decodeCursor } from "../lib/utils.js";
+import { normalisePhone, generateNumber, encodeCursor, decodeCursor, calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
 import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
+import { config } from "../config.js";
+import { notifyBusiness } from "../lib/notify.js";
 
 const createLeadSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -290,7 +293,89 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
 
       auditFromRequest(request, "create", "lead", lead.id).catch(() => {});
 
+      notifyBusiness(tenantId, "new_lead", {
+        summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via ${lead.source})`,
+        link: `/leads/${lead.id}`,
+        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via ${lead.source}. Open LeadFlow Pro.`,
+      }).catch(() => {});
+
       return reply.status(201).send({ data: lead });
+    }
+  );
+
+  // GET /api/v1/leads/web-form — return (lazily creating) this tenant's public
+  // website-form key, the intake endpoint, and a copy-paste embed snippet.
+  fastify.get(
+    "/leads/web-form",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const { tenantId } = request;
+
+      let sourceConfig = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId, source: "website" } },
+      });
+
+      if (!sourceConfig || !(sourceConfig.config as any)?.formKey) {
+        const formKey = nanoid(24);
+        sourceConfig = await prisma.leadSourceConfig.upsert({
+          where: { tenantId_source: { tenantId, source: "website" } },
+          create: { tenantId, source: "website", isActive: true, config: { formKey } },
+          update: { isActive: true, config: { formKey } },
+        });
+      }
+
+      const formKey = (sourceConfig.config as any).formKey as string;
+      const endpoint = `${config.API_URL}/api/v1/webhooks/forms/${formKey}`;
+      const embedSnippet = [
+        `<form id="lfp-lead-form">`,
+        `  <input name="firstName" placeholder="Your name" required />`,
+        `  <input name="phone" placeholder="Phone" />`,
+        `  <input name="email" type="email" placeholder="Email" />`,
+        `  <input name="serviceRequired" placeholder="What do you need?" />`,
+        `  <input name="companyWebsite" style="display:none" tabindex="-1" autocomplete="off" />`,
+        `  <button type="submit">Request a quote</button>`,
+        `</form>`,
+        `<script>`,
+        `document.getElementById('lfp-lead-form').addEventListener('submit', async (e) => {`,
+        `  e.preventDefault();`,
+        `  const data = Object.fromEntries(new FormData(e.target).entries());`,
+        `  await fetch('${endpoint}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });`,
+        `  e.target.innerHTML = '<p>Thanks! We will be in touch shortly.</p>';`,
+        `});`,
+        `</script>`,
+      ].join("\n");
+
+      return { data: { formKey, endpoint, embedSnippet, lastEventAt: sourceConfig.lastEventAt } };
+    }
+  );
+
+  // GET /api/v1/leads/google-ads-webhook — return (lazily creating) this tenant's
+  // Google Lead Form webhook URL + key to paste into Google Ads.
+  fastify.get(
+    "/leads/google-ads-webhook",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const { tenantId } = request;
+      let sourceConfig = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId, source: "google_ads" } },
+      });
+      if (!sourceConfig || !(sourceConfig.config as any)?.googleKey) {
+        const googleKey = nanoid(32);
+        sourceConfig = await prisma.leadSourceConfig.upsert({
+          where: { tenantId_source: { tenantId, source: "google_ads" } },
+          create: { tenantId, source: "google_ads", isActive: true, config: { googleKey } },
+          update: { isActive: true, config: { googleKey } },
+        });
+      }
+      const googleKey = (sourceConfig.config as any).googleKey as string;
+      return {
+        data: {
+          webhookUrl: `${config.API_URL}/api/v1/webhooks/google`,
+          googleKey,
+          lastEventAt: sourceConfig.lastEventAt,
+          instructions: "In Google Ads, open your Lead Form asset → Delivery → Webhook integration. Paste the Webhook URL and Key, then send test data.",
+        },
+      };
     }
   );
 
@@ -417,6 +502,15 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         createJob: z.boolean().default(false),
         jobTitle: z.string().optional(),
         scheduledStart: z.string().datetime().optional(),
+        // Optionally auto-generate a draft quote from selected catalog items / prices.
+        quoteTitle: z.string().optional(),
+        quoteItems: z.array(z.object({
+          catalogItemId: z.string().uuid().optional(),
+          description: z.string().min(1),
+          quantity: z.number().positive().default(1),
+          unitPriceCents: z.number().int().min(0),
+          gstRate: z.number().min(0).max(1).optional(),
+        })).optional(),
       }).parse(request.body);
 
       const lead = await prisma.lead.findFirst({
@@ -430,7 +524,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         where: { tenantId: request.tenantId },
       });
 
-      const { customer, job } = await prisma.$transaction(async (tx) => {
+      const { customer, job, quote } = await prisma.$transaction(async (tx) => {
         // Create or find customer
         let customer = lead.email
           ? await tx.customer.findFirst({
@@ -520,7 +614,67 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        return { customer, job };
+        // Optionally auto-generate a draft quote from the selected items.
+        let quote = null;
+        if (body.quoteItems && body.quoteItems.length > 0) {
+          const tenant = await tx.tenant.findUnique({ where: { id: request.tenantId }, select: { gstRate: true } });
+          const defaultGst = Number(tenant?.gstRate ?? 0.1);
+
+          const items = body.quoteItems.map((li, idx) => {
+            const gstRate = li.gstRate ?? defaultGst;
+            const calc = calculateLineItem(li.quantity, li.unitPriceCents, gstRate, 0);
+            return { ...li, gstRate, position: idx, ...calc };
+          });
+          const totals = calculateTotals(
+            items.map((li) => ({ quantity: li.quantity, unitPriceCents: li.unitPriceCents, discountPercent: 0, gstRate: li.gstRate }))
+          );
+
+          const quoteNumber = `${settings?.quotePrefix ?? "QTE"}-${new Date().getFullYear()}-${String(
+            (settings?.quoteNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
+          ).padStart(4, "0")}`;
+          const portalToken = generatePortalToken();
+
+          await tx.tenantSettings.update({
+            where: { tenantId: request.tenantId },
+            data: { quoteNextNumber: { increment: 1 } },
+          });
+
+          quote = await tx.quote.create({
+            data: {
+              tenantId: request.tenantId,
+              quoteNumber,
+              leadId: lead.id,
+              customerId: customer.id,
+              title: body.quoteTitle ?? lead.serviceRequired ?? "Quote",
+              subtotalCents: totals.subtotalCents,
+              discountCents: totals.discountCents,
+              gstCents: totals.gstCents,
+              totalCents: totals.totalCents,
+              status: "draft",
+              portalToken,
+              portalUrl: `${config.APP_URL}/portal/quote/${portalToken}`,
+              createdById: request.userId,
+              lineItems: {
+                create: items.map((li) => ({
+                  tenantId: request.tenantId,
+                  position: li.position,
+                  catalogItemId: li.catalogItemId,
+                  description: li.description,
+                  quantity: li.quantity,
+                  unitPriceCents: li.unitPriceCents,
+                  discountPercent: 0,
+                  discountCents: li.discountCents,
+                  subtotalCents: li.subtotalCents,
+                  gstRate: li.gstRate,
+                  gstCents: li.gstCents,
+                  totalCents: li.totalCents,
+                })),
+              },
+            },
+          });
+        }
+
+        return { customer, job, quote };
       });
 
       await prisma.leadActivity.create({
@@ -529,13 +683,13 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
           leadId: id,
           type: "lead_converted",
           description: `Lead converted to customer`,
-          metadata: { customerId: customer.id, jobId: job?.id },
+          metadata: { customerId: customer.id, jobId: job?.id, quoteId: quote?.id },
           userId: request.userId,
         },
       });
 
       return reply.status(200).send({
-        data: { customerId: customer.id, jobId: job?.id, leadId: id },
+        data: { customerId: customer.id, jobId: job?.id, quoteId: quote?.id, leadId: id },
       });
     }
   );

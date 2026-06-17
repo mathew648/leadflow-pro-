@@ -43,6 +43,11 @@ const envSchema = z.object({
   XERO_CLIENT_SECRET: z.string().optional(),
   XERO_REDIRECT_URI: z.string().url().optional(),
 
+  MYOB_CLIENT_ID: z.string().optional(),
+  MYOB_CLIENT_SECRET: z.string().optional(),
+  MYOB_REDIRECT_URI: z.string().url().optional(),
+  MYOB_API_KEY: z.string().optional(),
+
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),
@@ -51,6 +56,9 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().default(1000),
 
   ENABLE_AI_FEATURES: z.string().transform((v) => v === "true").default("true"),
+
+  // Comma-separated emails allowed into the platform admin panel (super-admins).
+  PLATFORM_ADMIN_EMAILS: z.string().default(""),
 
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("development"),

@@ -119,12 +119,13 @@ async function executeStep(
     case "send_email": {
       const email = mergedVars["customer.email"] || mergedVars["lead.email"];
       if (email) {
+        const body = interpolateTemplate(String(step.config.message ?? step.config.body ?? ""), mergedVars);
         await enqueueEmail({
           tenantId,
           template: String(step.config.template ?? "custom"),
           to: email,
           subject: interpolateTemplate(String(step.config.subject ?? "Message from us"), mergedVars),
-          data: { ...mergedVars, businessName: mergedVars["tenant.name"] },
+          data: { ...mergedVars, businessName: mergedVars["tenant.name"], body },
         });
       }
       break;

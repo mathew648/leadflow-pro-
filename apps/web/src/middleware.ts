@@ -1,19 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register", "/quotes/", "/pay/", "/api/"];
-
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-  if (isPublic) return NextResponse.next();
-
-  // Token check is done client-side via AuthGuard; middleware handles redirect for root
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
+// Public marketing + auth + customer-portal paths. The dashboard is guarded
+// client-side via AuthGuard, so the middleware just lets everything through —
+// the marketing home (/) is now public instead of redirecting to the dashboard.
+export function middleware(_request: NextRequest) {
   return NextResponse.next();
 }
 

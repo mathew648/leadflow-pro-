@@ -3,8 +3,10 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { generatePortalToken, calculateLineItem, calculateTotals } from "../lib/utils.js";
 import { enqueueAutomation, enqueueEmail, enqueuePdf, QUEUES, enqueueDelayed } from "../lib/queue.js";
+import { syncEntityToAccounting } from "../lib/accounting.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
+import { notifyBusiness } from "../lib/notify.js";
 import { config } from "../config.js";
 
 export default async function invoicesRoutes(fastify: FastifyInstance) {
@@ -287,6 +289,9 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         entityId: id,
       });
 
+      // Mirror the invoice into any connected accounting system (Xero/MYOB; no-op if none).
+      await syncEntityToAccounting(request.tenantId, "invoice", id);
+
       // Schedule overdue reminders
       if (invoice.dueDate) {
         const daysUntilDue = Math.round(
@@ -374,6 +379,14 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
           entityId: id,
         });
       }
+
+      // Push the payment to any connected accounting system (Xero/MYOB; no-op if none).
+      await syncEntityToAccounting(request.tenantId, "payment", id);
+
+      notifyBusiness(request.tenantId, "payment_received", {
+        summary: `Payment of <b>$${(actualAmount / 100).toFixed(2)}</b> recorded for invoice ${invoice.invoiceNumber}${newStatus === "paid" ? " (now fully paid)" : ""}.`,
+        link: `/invoices/${id}`,
+      }).catch(() => {});
 
       // Email the customer a payment receipt (logged to Message history)
       if (invoice.customer.email) {

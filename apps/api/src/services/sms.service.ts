@@ -39,9 +39,12 @@ export async function sendSms(payload: SmsPayload): Promise<{ messageId: string 
 
 export function interpolateTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
-    const parts = key.trim().split(".");
+    const k = key.trim();
+    // Vars are stored as flat dotted keys (e.g. "tenant.name"), so match those first.
+    if (vars[k] != null) return String(vars[k]);
+    // Fall back to walking a nested object path for callers that pass one.
     let value: unknown = vars;
-    for (const part of parts) {
+    for (const part of k.split(".")) {
       value = (value as Record<string, unknown>)?.[part];
     }
     return value != null ? String(value) : "";

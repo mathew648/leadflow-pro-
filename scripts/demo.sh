@@ -24,8 +24,8 @@ if ! port_up 5433; then
   echo "  ✗ Postgres not running on :5433 — start it with: pnpm docker:up"
   exit 1
 fi
-if ! port_up 6379; then
-  echo "  ✗ Redis not running on :6379 — start it with: pnpm docker:up"
+if ! port_up 6380; then
+  echo "  ✗ Redis not running on :6380 — start it with: pnpm docker:up"
   exit 1
 fi
 echo "  ✓ Postgres and Redis are up"

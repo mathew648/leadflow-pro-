@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDateTime, statusColor, cn } from "@/lib/utils";
+import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import Link from "next/link";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -108,6 +109,9 @@ export default function DashboardPage() {
       <Topbar title="Dashboard" />
 
       <div className="p-4 lg:p-6 space-y-6">
+        {/* Guided setup checklist for new tradies */}
+        <OnboardingChecklist />
+
         {/* Trial banner */}
         <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -117,7 +121,7 @@ export default function DashboardPage() {
               <p className="text-xs text-brand-600">Upgrade to keep all your data and unlock unlimited leads</p>
             </div>
           </div>
-          <Button size="sm" className="flex-shrink-0">Upgrade now</Button>
+          <Link href="/settings?tab=billing"><Button size="sm" className="flex-shrink-0">Upgrade now</Button></Link>
         </div>
 
         {/* KPI grid */}

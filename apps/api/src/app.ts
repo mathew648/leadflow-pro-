@@ -28,6 +28,8 @@ import uploadRoutes from "./routes/upload.js";
 import tenantsRoutes from "./routes/tenants.js";
 import messagesRoutes from "./routes/messages.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
+import billingRoutes from "./routes/billing.js";
+import adminRoutes from "./routes/admin.js";
 
 export interface BuildAppOptions {
   disableRateLimit?: boolean;
@@ -181,6 +183,8 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await fastify.register(uploadRoutes, v1Prefix);
   await fastify.register(messagesRoutes, v1Prefix);
   await fastify.register(auditLogsRoutes, v1Prefix);
+  await fastify.register(billingRoutes, v1Prefix);
+  await fastify.register(adminRoutes, v1Prefix);
 
   fastify.setNotFoundHandler((request, reply) => {
     reply.status(404).send({ error: { code: "NOT_FOUND", message: `Route ${request.url} not found` } });

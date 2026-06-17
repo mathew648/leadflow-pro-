@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Topbar } from "@/components/layout/topbar";
@@ -7,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn, initials } from "@/lib/utils";
-import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import { User, Building2, Users, CreditCard, Plug, Settings2, GitBranch, Plus, Trash2, Upload } from "lucide-react";
 
 const TABS = [
   { id: "profile",   label: "Profile",     icon: User },
@@ -93,6 +95,7 @@ function BusinessTab() {
       state: tenant.state ?? "",
       postcode: tenant.postcode ?? "",
       timezone: tenant.timezone ?? "Australia/Sydney",
+      primaryColor: tenant.primaryColor ?? "#2563EB",
     } : undefined,
   });
 
@@ -100,6 +103,26 @@ function BusinessTab() {
     mutationFn: (data: any) => api.patch("/tenant", data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["tenant"] }); toast({ title: "Business details updated" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Logo upload: presigned direct-to-R2 upload, then confirm (persists tenant.logoUrl).
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const token = getToken();
+      const auth = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const pre: any = await api.post("/upload/presigned", {
+        filename: file.name, contentType: file.type, category: "logo",
+      });
+      const put = await fetch(pre.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!put.ok) throw new Error("Upload failed (storage not configured?)");
+      await api.post("/upload/confirm", {
+        key: pre.key, publicUrl: pre.publicUrl, category: "logo", entityType: "tenant",
+      });
+      return pre.publicUrl as string;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tenant"] }); toast({ title: "Logo updated" }); },
+    onError: (e: any) => toast({ title: "Logo upload failed", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -153,6 +176,37 @@ function BusinessTab() {
               <option value="Pacific/Auckland">Pacific/Auckland (NZST)</option>
             </select>
           </div>
+          <div className="border-t pt-4 space-y-3">
+            <Label className="text-sm font-semibold">Branding</Label>
+            <p className="text-xs text-muted-foreground -mt-1">Your logo and colour appear on quotes, invoices and customer emails.</p>
+            <div className="flex items-center gap-4">
+              {tenant?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={tenant.logoUrl} alt="Logo" className="h-12 w-12 rounded-lg object-contain border bg-white" />
+              ) : (
+                <div className="h-12 w-12 rounded-lg border bg-muted flex items-center justify-center text-muted-foreground text-xs">Logo</div>
+              )}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) logoMutation.mutate(f); e.target.value = ""; }}
+              />
+              <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={logoMutation.isPending}>
+                <Upload className="w-4 h-4 mr-1.5" />
+                {logoMutation.isPending ? "Uploading…" : "Upload logo"}
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Brand colour</Label>
+              <div className="flex items-center gap-3">
+                <input type="color" {...register("primaryColor")} className="h-9 w-14 rounded border cursor-pointer p-0.5" />
+                <Input {...register("primaryColor")} placeholder="#2563EB" className="w-32 font-mono" />
+              </div>
+            </div>
+          </div>
+
           <Button type="submit" disabled={isSubmitting || mutation.isPending}>Save changes</Button>
         </form>
       </CardContent>
@@ -181,6 +235,9 @@ function DocumentsTab() {
       requireCustomerSignoff: settings.requireCustomerSignoff ?? false,
       notifyNewLeadEmail: settings.notifyNewLeadEmail ?? true,
       notifyNewLeadSms: settings.notifyNewLeadSms ?? false,
+      notifyQuoteViewed: settings.notifyQuoteViewed ?? true,
+      notifyQuoteApproved: settings.notifyQuoteApproved ?? true,
+      notifyPaymentReceived: settings.notifyPaymentReceived ?? true,
       autoSendReviewRequest: settings.autoSendReviewRequest ?? false,
       reviewRequestDelayHours: settings.reviewRequestDelayHours ?? 24,
     } : undefined,
@@ -268,6 +325,18 @@ function DocumentsTab() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" {...register("notifyNewLeadSms")} className="rounded" />
             SMS me when a new lead comes in
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyQuoteViewed")} className="rounded" />
+            Notify me when a customer views a quote
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyQuoteApproved")} className="rounded" />
+            Notify me when a customer approves a quote
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" {...register("notifyPaymentReceived")} className="rounded" />
+            Notify me when a payment is received
           </label>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" {...register("autoSendReviewRequest")} className="rounded" />
@@ -507,10 +576,25 @@ function IntegrationsTab() {
     { id: "windcave", name: "Windcave", description: "NZ payment gateway for card processing",                logo: "W" },
   ];
 
+  const connect = useMutation({
+    mutationFn: async (id: string) => {
+      if (id === "xero" || id === "myob") return api.get<any>(`/integrations/${id}/connect`);
+      if (id === "stripe") return api.get<any>("/integrations/stripe/setup");
+      throw new Error("This integration is coming soon");
+    },
+    onSuccess: (r: any) => {
+      const url = r?.authUrl ?? r?.url;
+      if (url) window.location.href = url;
+      else toast({ title: "Couldn't start connection", variant: "destructive" });
+    },
+    onError: (e: any) => toast({ title: e.message ?? "Coming soon" }),
+  });
+  const connList = Array.isArray(connections) ? connections : (connections as any)?.data ?? [];
+
   return (
     <div className="space-y-4">
       {integrations.map((integration) => {
-        const conn = connections?.find?.((c: any) => c.provider === integration.id);
+        const conn = connList.find((c: any) => c.provider === integration.id);
         return (
           <Card key={integration.id}>
             <CardContent className="p-4">
@@ -525,16 +609,18 @@ function IntegrationsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {conn?.isActive ? (
-                    <>
-                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
-                      </span>
-                      <Button size="sm" variant="outline">Settings</Button>
-                    </>
+                  {conn?.status === "active" ? (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected
+                    </span>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => toast({ title: "Coming soon", description: `${integration.name} integration is in progress` })}>
-                      Connect
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={connect.isPending || integration.id === "windcave"}
+                      onClick={() => connect.mutate(integration.id)}
+                    >
+                      {integration.id === "windcave" ? "Coming soon" : "Connect"}
                     </Button>
                   )}
                 </div>
@@ -547,9 +633,79 @@ function IntegrationsTab() {
   );
 }
 
+/* ─── Billing ─── */
+function BillingTab() {
+  const { data: tenantData } = useQuery({ queryKey: ["tenant"], queryFn: () => api.get<any>("/tenant") });
+  const { data: plans } = useQuery({ queryKey: ["billing-plans"], queryFn: () => api.get<any>("/billing/plans") });
+  const sub = tenantData?.subscription ?? tenantData?.data?.subscription;
+  const currentTier = sub?.tier ?? "starter";
+  const status = sub?.status ?? "trialing";
+  const planList: any[] = Array.isArray(plans) ? plans : plans?.data ?? [];
+
+  const checkout = useMutation({
+    mutationFn: (plan: string) => api.post<any>("/billing/checkout", { plan }),
+    onSuccess: (r: any) => { if (r?.url) window.location.href = r.url; },
+    onError: (e: any) => toast({ title: "Couldn't start checkout", description: e.message, variant: "destructive" }),
+  });
+  const portal = useMutation({
+    mutationFn: () => api.post<any>("/billing/portal", {}),
+    onSuccess: (r: any) => { if (r?.url) window.location.href = r.url; },
+    onError: (e: any) => toast({ title: "Couldn't open billing portal", description: e.message, variant: "destructive" }),
+  });
+
+  const money = (cents: number, currency: string) =>
+    new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader>
+          <CardTitle>Billing & Subscription</CardTitle>
+          <CardDescription>
+            Current plan: <span className="font-semibold capitalize">{currentTier}</span>
+            {" · "}<span className="capitalize">{status}</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {planList.map((p) => {
+              const isCurrent = p.id === currentTier && status === "active";
+              return (
+                <div key={p.id} className={cn("rounded-xl border p-5", isCurrent && "ring-1 ring-primary border-primary")}>
+                  <h3 className="font-semibold text-lg">{p.name}</h3>
+                  <p className="mt-1 text-2xl font-bold">{money(p.priceCents, p.currency)}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Up to {p.maxUsers} user{p.maxUsers === 1 ? "" : "s"}</p>
+                  <Button
+                    className="w-full mt-4"
+                    variant={isCurrent ? "outline" : "default"}
+                    disabled={isCurrent || checkout.isPending}
+                    onClick={() => checkout.mutate(p.id)}
+                  >
+                    {isCurrent ? "Current plan" : checkout.isPending ? "Redirecting…" : "Choose plan"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          {sub?.stripeCustomerId && (
+            <Button variant="outline" size="sm" className="mt-5" onClick={() => portal.mutate()} disabled={portal.isPending}>
+              Manage billing & payment method
+            </Button>
+          )}
+          <p className="text-xs text-muted-foreground mt-4">
+            Secure checkout by Stripe. You can cancel anytime from the billing portal.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 /* ─── Page ─── */
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("profile");
+  const searchParams = useSearchParams();
+  const initialTab = TABS.some((t) => t.id === searchParams.get("tab")) ? searchParams.get("tab")! : "profile";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   return (
     <div>
@@ -593,14 +749,7 @@ export default function SettingsPage() {
           {activeTab === "documents"    && <DocumentsTab />}
           {activeTab === "pipeline"     && <PipelineTab />}
           {activeTab === "users"        && <TeamTab />}
-          {activeTab === "billing"      && (
-            <Card>
-              <CardHeader><CardTitle>Billing & Subscription</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Billing management coming soon. Contact support to change your plan.</p>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === "billing"      && <BillingTab />}
           {activeTab === "integrations" && <IntegrationsTab />}
         </div>
       </div>

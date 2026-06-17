@@ -6,6 +6,7 @@ import { enqueueEmail, enqueuePdf, enqueueAutomation } from "../lib/queue.js";
 import { config } from "../config.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
+import { notifyBusiness } from "../lib/notify.js";
 
 const lineItemSchema = z.object({
   catalogItemId: z.string().uuid().optional(),
@@ -418,6 +419,10 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
           entityType: "quote",
           entityId: quote.id,
         });
+        notifyBusiness(quote.tenantId, "quote_viewed", {
+          summary: `Your customer just viewed quote <b>${quote.quoteNumber}</b>.`,
+          link: `/quotes/${quote.id}`,
+        }).catch(() => {});
       }
 
       return { data: quote };
@@ -514,6 +519,11 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         entityId: quote.id,
         entityData: { jobId: job.id },
       });
+
+      notifyBusiness(quote.tenantId, "quote_approved", {
+        summary: `Quote <b>${quote.quoteNumber}</b> was approved by your customer. A job has been created.`,
+        link: `/jobs/${job.id}`,
+      }).catch(() => {});
 
       return { data: { approved: true, jobId: job.id, quoteId: quote.id } };
     }
