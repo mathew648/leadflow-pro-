@@ -3,7 +3,7 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { prisma } from "../lib/prisma.js";
 import { config } from "../config.js";
-import { PLANS, planPriceCents, type PlanId } from "../lib/plans.js";
+import { PLANS, planPriceCents, planCycleCents, type PlanId } from "../lib/plans.js";
 
 export default async function billingRoutes(fastify: FastifyInstance) {
   // GET /api/v1/billing/plans — public-ish plan catalogue for the upgrade UI.
@@ -18,10 +18,13 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         id: p.id,
         name: p.name,
         priceCents: planPriceCents(p, country),
+        annualCents: p.annualCents,
         currency: country === "NZ" ? "NZD" : "AUD",
         maxUsers: p.maxUsers,
         accountType: p.accountType,
+        tagline: p.tagline,
         blurb: p.blurb,
+        inherits: p.inherits,
         features: p.features,
       })),
     };
@@ -32,7 +35,10 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     "/billing/checkout",
     { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
     async (request, reply) => {
-      const { plan } = z.object({ plan: z.enum(["sole_trader", "company", "website", "non_tradie"]) }).parse(request.body);
+      const { plan, cycle } = z.object({
+        plan: z.enum(["sole_trader", "company", "website", "non_tradie"]),
+        cycle: z.enum(["monthly", "annual"]).default("monthly"),
+      }).parse(request.body);
 
       if (!config.STRIPE_SECRET_KEY) {
         return reply.status(503).send({ error: { code: "BILLING_UNAVAILABLE", message: "Billing is not configured" } });
@@ -69,15 +75,15 @@ export default async function billingRoutes(fastify: FastifyInstance) {
           {
             price_data: {
               currency: (tenant.currency ?? "AUD").toLowerCase(),
-              product_data: { name: `TradieJet — ${planDef.name}` },
-              recurring: { interval: "month" },
-              unit_amount: planPriceCents(planDef, tenant.country),
+              product_data: { name: `TradieJet — ${planDef.name}${cycle === "annual" ? " (annual)" : ""}` },
+              recurring: { interval: cycle === "annual" ? "year" : "month" },
+              unit_amount: planCycleCents(planDef, cycle),
             },
             quantity: 1,
           },
         ],
-        subscription_data: { metadata: { tenantId: request.tenantId, plan } },
-        metadata: { tenantId: request.tenantId, plan },
+        subscription_data: { metadata: { tenantId: request.tenantId, plan, cycle } },
+        metadata: { tenantId: request.tenantId, plan, cycle },
         success_url: `${config.APP_URL}/settings?billing=success`,
         cancel_url: `${config.APP_URL}/settings?billing=cancelled`,
       });

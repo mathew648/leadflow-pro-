@@ -1,5 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { nanoid } from "nanoid";
+import { prisma } from "../lib/prisma.js";
 import { config } from "../config.js";
 
 /**
@@ -67,6 +69,44 @@ export default async function lookupRoutes(fastify: FastifyInstance) {
       } catch {
         return reply.status(502).send({ error: { code: "LOOKUP_FAILED", message: "Could not reach the business register" } });
       }
+    }
+  );
+
+  // GET /api/v1/public/lead-page/:slug — public branding + formKey for a tenant's
+  // hosted "Request a Quote" page. Reuses the existing website formKey (lazily created).
+  fastify.get(
+    "/public/lead-page/:slug",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { slug } = z.object({ slug: z.string().min(1).max(120) }).parse(request.params);
+      const tenant = await prisma.tenant.findUnique({
+        where: { slug },
+        select: { id: true, businessName: true, logoUrl: true, primaryColor: true, suburb: true, phone: true },
+      });
+      if (!tenant) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Page not found" } });
+
+      let cfg = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId: tenant.id, source: "website" } },
+      });
+      let formKey = (cfg?.config as any)?.formKey as string | undefined;
+      if (!formKey) {
+        formKey = nanoid(24);
+        await prisma.leadSourceConfig.upsert({
+          where: { tenantId_source: { tenantId: tenant.id, source: "website" } },
+          create: { tenantId: tenant.id, source: "website", isActive: true, config: { formKey } },
+          update: { isActive: true, config: { formKey } },
+        });
+      }
+
+      return {
+        data: {
+          businessName: tenant.businessName,
+          logoUrl: tenant.logoUrl,
+          primaryColor: tenant.primaryColor ?? "#2563EB",
+          suburb: tenant.suburb,
+          formKey,
+        },
+      };
     }
   );
 }
