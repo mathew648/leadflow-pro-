@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../lib/prisma.js";
-import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
+import { enqueueAutomation, enqueueAIScoring, enqueueAccountingSync } from "../lib/queue.js";
 import { normalisePhone } from "../lib/utils.js";
 import { config } from "../config.js";
 import Stripe from "stripe";
@@ -170,6 +170,15 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
                   },
                 }),
               ]);
+
+              // Push the payment to the connected accounting system (no-op if not connected).
+              await enqueueAccountingSync({
+                tenantId,
+                provider: "xero",
+                entityType: "payment",
+                entityId: invoiceId,
+                action: "create",
+              });
 
               if (newAmountDue <= 0) {
                 await enqueueAutomation({
