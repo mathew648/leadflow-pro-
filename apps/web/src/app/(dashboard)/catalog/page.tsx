@@ -1,12 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Package, Edit2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Search, Plus, Package, Edit2, ToggleLeft, ToggleRight, Upload } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -84,6 +84,40 @@ export default function CatalogPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = getToken();
+      const res = await fetch("/api/v1/catalog/items/import-file", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message ?? "Import failed");
+      return json.data as { imported: number; parsed: number; skipped: number };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: `Imported ${data.imported} item${data.imported === 1 ? "" : "s"}`,
+        description: data.skipped > 0 ? `${data.skipped} row(s) skipped — check headers/prices` : undefined,
+      });
+      qc.invalidateQueries({ queryKey: ["catalog-items"] });
+      qc.invalidateQueries({ queryKey: ["catalog-categories"] });
+    },
+    onError: (e: any) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
+  });
+
+  function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) importMutation.mutate(file);
+    e.target.value = ""; // allow re-selecting the same file
+  }
+
   function openCreate() {
     setEditItem(null);
     setForm({ ...BLANK });
@@ -153,7 +187,25 @@ export default function CatalogPage() {
             </button>
           ))}
         </div>
-        <span className="text-sm text-muted-foreground ml-auto">{data?.meta?.total ?? 0} items</span>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.xlsx"
+          hidden
+          onChange={onFilePicked}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto h-8"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importMutation.isPending}
+          title="Import a price list from CSV or Excel (.xlsx)"
+        >
+          <Upload className="w-4 h-4 mr-1.5" />
+          {importMutation.isPending ? "Importing…" : "Import CSV/Excel"}
+        </Button>
+        <span className="text-sm text-muted-foreground">{data?.meta?.total ?? 0} items</span>
       </div>
 
       <div className="p-4 lg:p-6">
