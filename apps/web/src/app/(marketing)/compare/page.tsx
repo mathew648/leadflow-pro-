@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Check, X, ArrowRight } from "lucide-react";
 
 export const metadata = {
-  title: "Why LeadFlow Pro — Own your leads, flat pricing",
-  description: "Stop renting shared leads and paying per user. LeadFlow captures your own leads and charges one flat price for your whole team.",
+  title: "Why TradieJet — Own your leads, flat pricing",
+  description: "Stop renting shared leads and paying per user. TradieJet captures your own leads and charges one flat price for your whole team.",
 };
 
 export default function ComparePage() {
@@ -15,7 +15,7 @@ export default function ComparePage() {
           <h1 className="text-4xl sm:text-5xl font-bold">Win more jobs. Keep more money.</h1>
           <p className="mt-5 text-lg text-brand-100 max-w-2xl mx-auto">
             Other tools either <strong>sell you shared leads</strong> or <strong>charge per user</strong>.
-            LeadFlow captures <em>your own</em> leads and runs your whole team on one flat price.
+            TradieJet captures <em>your own</em> leads and runs your whole team on one flat price.
           </p>
           <Link href="/register" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-brand-700 hover:bg-brand-50">
             Start free — no credit card <ArrowRight className="w-4 h-4" />
@@ -40,7 +40,7 @@ export default function ComparePage() {
             </ul>
           </div>
           <div className="rounded-2xl border-2 border-brand-600 p-6">
-            <h3 className="font-semibold text-lg">LeadFlow Pro</h3>
+            <h3 className="font-semibold text-lg">TradieJet</h3>
             <ul className="mt-4 space-y-2 text-sm text-gray-700">
               {["Capture your OWN leads from your site, Google & Meta", "Exclusive — never shared", "Instant auto-reply so you win the job", "No per-lead fees, ever"].map((t) => (
                 <li key={t} className="flex gap-2"><Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />{t}</li>
@@ -55,7 +55,7 @@ export default function ComparePage() {
         <div className="mx-auto max-w-5xl px-4 py-16">
           <h2 className="text-3xl font-bold text-center">Flat price — not per user</h2>
           <p className="mt-3 text-gray-600 text-center max-w-2xl mx-auto">
-            Per-seat job software adds up fast. LeadFlow&rsquo;s Company plan covers your whole team (up to 15) for one price.
+            Per-seat job software adds up fast. TradieJet&rsquo;s Company plan covers your whole team (up to 15) for one price.
           </p>
           <div className="mt-10 overflow-x-auto">
             <table className="w-full max-w-2xl mx-auto text-sm bg-white rounded-xl border">
@@ -63,7 +63,7 @@ export default function ComparePage() {
                 <tr className="border-b bg-muted/40 text-left">
                   <th className="px-4 py-3 font-medium">Team size</th>
                   <th className="px-4 py-3 font-medium">Per-user software (~$52/user)</th>
-                  <th className="px-4 py-3 font-medium text-brand-700">LeadFlow Company</th>
+                  <th className="px-4 py-3 font-medium text-brand-700">TradieJet Company</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -91,7 +91,7 @@ export default function ComparePage() {
                 <th className="px-4 py-3 font-medium">What you need</th>
                 <th className="px-4 py-3 font-medium text-center">Lead marketplace</th>
                 <th className="px-4 py-3 font-medium text-center">Job-only software</th>
-                <th className="px-4 py-3 font-medium text-center text-brand-700">LeadFlow Pro</th>
+                <th className="px-4 py-3 font-medium text-center text-brand-700">TradieJet</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -132,7 +132,7 @@ export default function ComparePage() {
 
       <p className="mx-auto max-w-5xl px-4 py-8 text-xs text-gray-400 text-center">
         Comparisons are based on competitors&rsquo; publicly available pricing and features as of June 2026 and are for
-        general guidance only. Product and brand names are trademarks of their respective owners; LeadFlow Pro is not
+        general guidance only. Product and brand names are trademarks of their respective owners; TradieJet is not
         affiliated with or endorsed by them.
       </p>
     </>

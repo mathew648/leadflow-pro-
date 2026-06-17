@@ -12,7 +12,7 @@ export interface XeroAuth {
 }
 
 /**
- * Returns a usable Xero access token for the given LeadFlow tenant, transparently
+ * Returns a usable Xero access token for the given TradieJet tenant, transparently
  * refreshing it (and persisting the rotated tokens) when it is close to expiry.
  * Throws "Xero not connected" when there is no active connection — callers should
  * treat that as a no-op, not a failure.

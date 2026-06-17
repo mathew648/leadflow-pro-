@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Inbox, FileText, CalendarCheck, CreditCard, Bot, BarChart3, Receipt, Upload } from "lucide-react";
 
-export const metadata = { title: "Features — LeadFlow Pro" };
+export const metadata = { title: "Features — TradieJet" };
 
 const SECTIONS = [
   { icon: Inbox, title: "Lead capture from everywhere", points: ["Embeddable website form", "Google & Meta lead ads", "Inbound SMS & manual entry", "Instant auto-reply to every lead", "Duplicate detection"] },

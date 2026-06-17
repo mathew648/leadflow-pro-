@@ -69,7 +69,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
           {
             price_data: {
               currency: (tenant.currency ?? "AUD").toLowerCase(),
-              product_data: { name: `LeadFlow Pro — ${planDef.name}` },
+              product_data: { name: `TradieJet — ${planDef.name}` },
               recurring: { interval: "month" },
               unit_amount: planPriceCents(planDef, tenant.country),
             },

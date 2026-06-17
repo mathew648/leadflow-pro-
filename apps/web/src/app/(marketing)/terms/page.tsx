@@ -1,4 +1,4 @@
-export const metadata = { title: "Terms of Service — LeadFlow Pro" };
+export const metadata = { title: "Terms of Service — TradieJet" };
 
 export default function TermsPage() {
   return (
@@ -7,12 +7,12 @@ export default function TermsPage() {
       <p className="text-sm text-gray-500 mt-1">Last updated: June 2026</p>
 
       <p className="mt-6 text-gray-700 text-sm">
-        These Terms govern your use of <strong>LeadFlow Pro</strong>. By creating an account or using the service, you
+        These Terms govern your use of <strong>TradieJet</strong>. By creating an account or using the service, you
         agree to them.
       </p>
 
       <Section title="1. The service">
-        LeadFlow Pro provides software for lead capture, customer management, quoting, invoicing, payments, and
+        TradieJet provides software for lead capture, customer management, quoting, invoicing, payments, and
         communication automation. We may update or improve features over time.
       </Section>
       <Section title="2. Accounts">
@@ -25,7 +25,7 @@ export default function TermsPage() {
         Prices may change with reasonable notice.
       </Section>
       <Section title="4. Your data &amp; acceptable use">
-        You retain ownership of the data you put into LeadFlow. You grant us a licence to process it to provide the
+        You retain ownership of the data you put into TradieJet. You grant us a licence to process it to provide the
         service. You must have the right to use any contact data you upload, must comply with anti-spam and privacy
         laws when sending messages, and must not use the service for unlawful, abusive, or harmful purposes.
       </Section>
@@ -34,7 +34,7 @@ export default function TermsPage() {
         responsible for third-party services or their availability.
       </Section>
       <Section title="6. Intellectual property">
-        We own the LeadFlow Pro software and brand. You may not copy, resell, or reverse-engineer the platform except
+        We own the TradieJet software and brand. You may not copy, resell, or reverse-engineer the platform except
         as permitted by law.
       </Section>
       <Section title="7. Availability &amp; disclaimers">
@@ -55,7 +55,7 @@ export default function TermsPage() {
         business). Disputes are subject to the courts of that jurisdiction.
       </Section>
       <Section title="11. Contact">
-        Questions: <strong>support@leadflowpro.com</strong>.
+        Questions: <strong>support@tradiejet.com</strong>.
       </Section>
 
       <p className="mt-8 text-xs text-gray-400">

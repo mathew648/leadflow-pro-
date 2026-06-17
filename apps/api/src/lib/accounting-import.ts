@@ -6,7 +6,7 @@ const cents = (n: unknown) => Math.round((Number(n) || 0) * 100);
 
 /**
  * Pull existing customers + price-book items FROM the connected accounting system INTO
- * LeadFlow, so a tradie arrives with their data already loaded (and can switch off a
+ * TradieJet, so a tradie arrives with their data already loaded (and can switch off a
  * competitor easily). Idempotent: skips records already imported (by external id / code).
  * Throws "<provider> not connected" when there's no active connection.
  */

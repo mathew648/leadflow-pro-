@@ -108,7 +108,7 @@ export default function RegisterPage() {
           <ArrowLeft className="w-4 h-4" /> Back to website
         </Link>
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4 hover:bg-white/30 transition-colors" aria-label="LeadFlow Pro home">
+          <Link href="/" className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4 hover:bg-white/30 transition-colors" aria-label="TradieJet home">
             <Zap className="w-8 h-8 text-white" />
           </Link>
           <h1 className="text-3xl font-bold text-white">Start free trial</h1>

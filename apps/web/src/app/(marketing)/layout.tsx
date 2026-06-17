@@ -10,7 +10,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-600 text-white">
               <Zap className="w-5 h-5" />
             </span>
-            LeadFlow Pro
+            TradieJet
           </Link>
           <nav className="hidden sm:flex items-center gap-6 text-sm font-medium text-gray-600">
             <Link href="/features" className="hover:text-gray-900">Features</Link>
@@ -32,7 +32,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <footer className="border-t bg-gray-50">
         <div className="mx-auto max-w-6xl px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
           <div className="flex items-center gap-2 font-semibold text-gray-700">
-            <Zap className="w-4 h-4 text-brand-600" /> LeadFlow Pro
+            <Zap className="w-4 h-4 text-brand-600" /> TradieJet
           </div>
           <p>Built for Australian &amp; New Zealand trades businesses.</p>
           <div className="flex gap-5 flex-wrap">

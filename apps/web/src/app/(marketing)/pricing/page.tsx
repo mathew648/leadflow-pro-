@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 
-export const metadata = { title: "Pricing — LeadFlow Pro" };
+export const metadata = { title: "Pricing — TradieJet" };
 
 const PLANS = [
   {

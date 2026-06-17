@@ -114,10 +114,10 @@ export default async function tenantsRoutes(fastify: FastifyInstance) {
         const result = await sendEmail({
           tenantId: request.tenantId,
           to: email,
-          subject: `Test email from ${tenant?.businessName ?? "LeadFlow Pro"}`,
+          subject: `Test email from ${tenant?.businessName ?? "TradieJet"}`,
           template: "custom",
           data: {
-            body: "✅ Your email is working! This is a test from LeadFlow Pro. Quotes, invoices and automated replies will now reach your customers.",
+            body: "✅ Your email is working! This is a test from TradieJet. Quotes, invoices and automated replies will now reach your customers.",
             businessName: tenant?.businessName,
             primaryColor: tenant?.primaryColor,
             logoUrl: tenant?.logoUrl,
@@ -216,7 +216,7 @@ export default async function tenantsRoutes(fastify: FastifyInstance) {
           tenantId: request.tenantId,
           tenant,
           to: user.email,
-          subject: `You're invited to ${tenant.businessName} on LeadFlow Pro`,
+          subject: `You're invited to ${tenant.businessName} on TradieJet`,
           template: "team_invite",
           data: { firstName: user.firstName, inviterBusiness: tenant.businessName, role: body.role, acceptUrl },
         }).catch(() => null);

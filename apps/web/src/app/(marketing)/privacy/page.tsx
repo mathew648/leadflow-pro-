@@ -1,4 +1,4 @@
-export const metadata = { title: "Privacy Policy — LeadFlow Pro" };
+export const metadata = { title: "Privacy Policy — TradieJet" };
 
 export default function PrivacyPage() {
   return (
@@ -7,13 +7,13 @@ export default function PrivacyPage() {
       <p className="text-sm text-gray-500 mt-1">Last updated: June 2026</p>
 
       <p className="mt-6 text-gray-700">
-        This Privacy Policy explains how <strong>LeadFlow Pro</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;) collects, uses,
+        This Privacy Policy explains how <strong>TradieJet</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;) collects, uses,
         and protects personal information. We comply with the Australian Privacy Act 1988 (and the Australian
         Privacy Principles) and the New Zealand Privacy Act 2020.
       </p>
 
       <Section title="1. Who we are">
-        LeadFlow Pro is a software platform that helps trades and small businesses capture leads, manage customers,
+        TradieJet is a software platform that helps trades and small businesses capture leads, manage customers,
         send quotes and invoices, take payments, and automate communication. For data that a customer
         (&ldquo;the business&rdquo;) loads or generates about <em>their</em> clients, we act as a processor on the
         business&rsquo;s behalf; the business is the data controller.
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
 
       <Section title="7. Your rights">
         You may request access to, correction of, or deletion of your personal information, and may withdraw consent
-        to optional processing. Contact us using the details below. Businesses using LeadFlow are responsible for
+        to optional processing. Contact us using the details below. Businesses using TradieJet are responsible for
         responding to such requests from their own clients.
       </Section>
 
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
       </Section>
 
       <Section title="10. Contact">
-        Questions or privacy requests: <strong>privacy@leadflowpro.com</strong>.
+        Questions or privacy requests: <strong>privacy@tradiejet.com</strong>.
       </Section>
 
       <p className="mt-8 text-xs text-gray-400">

@@ -1,4 +1,4 @@
-// LeadFlow Pro service worker — deliberately conservative to avoid stale-content bugs.
+// TradieJet service worker — deliberately conservative to avoid stale-content bugs.
 // - Only cache-first for content-hashed static assets (/_next/static, /icons) — safe forever.
 // - Navigations are network-first with an offline fallback (always fresh HTML).
 // - API and non-GET requests are never touched.
@@ -41,4 +41,31 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
   }
+});
+
+// Push notifications (new lead, quote approved, payment, etc.)
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  const title = data.title || "TradieJet";
+  const options = {
+    body: data.body || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: data.url || "/dashboard" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/dashboard";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) { client.navigate(url); return client.focus(); }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
 });

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma.js";
 import { enqueueEmail, enqueueSms } from "./queue.js";
+import { sendPushToTenant } from "./push.js";
 import { config } from "../config.js";
 
 /**
@@ -61,7 +62,7 @@ export async function notifyBusiness(tenantId: string, event: BusinessEvent, ctx
         subject: `${SUBJECT[event]} — ${tenant.businessName}`,
         template: "custom",
         data: {
-          body: `${ctx.summary}<br/><br/><a href="${url}">Open in LeadFlow Pro →</a>`,
+          body: `${ctx.summary}<br/><br/><a href="${url}">Open in TradieJet →</a>`,
           businessName: tenant.businessName,
           primaryColor: tenant.primaryColor,
           logoUrl: tenant.logoUrl,
@@ -72,6 +73,9 @@ export async function notifyBusiness(tenantId: string, event: BusinessEvent, ctx
     if (event === "new_lead" && ctx.sms && settingsRec?.notifyNewLeadSms && tenant.phone) {
       await enqueueSms({ tenantId, to: tenant.phone, body: ctx.sms });
     }
+
+    // Push notification to the team's installed devices (no-op if no subscriptions / VAPID).
+    await sendPushToTenant(tenantId, { title: SUBJECT[event], body: ctx.summary, url }).catch(() => {});
   } catch {
     /* business alerts are best-effort; never block the originating request */
   }

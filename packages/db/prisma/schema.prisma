@@ -375,10 +375,27 @@ model User {
   createdJobs     Job[]         @relation("CreatedJobs")
   locationPings   LocationPing[]
   auditLogs       AuditLog[]
+  pushSubscriptions PushSubscription[]
 
   @@unique([email, tenantId])
   @@index([tenantId])
   @@map("users")
+}
+
+model PushSubscription {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  tenantId  String   @db.Uuid @map("tenant_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model RefreshToken {

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "LeadFlow Pro",
-    short_name: "LeadFlow",
+    name: "TradieJet",
+    short_name: "TradieJet",
     description: "Capture leads, send quotes, get paid — for AU & NZ trades.",
     start_url: "/dashboard",
     display: "standalone",

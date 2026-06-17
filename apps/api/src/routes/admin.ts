@@ -5,7 +5,7 @@ import { enqueueEmail } from "../lib/queue.js";
 import { isPlatformAdmin } from "../lib/platform-admin.js";
 
 /**
- * Platform admin panel — cross-tenant, for the LeadFlow Pro operator (not tradies).
+ * Platform admin panel — cross-tenant, for the TradieJet operator (not tradies).
  * Guarded by the PLATFORM_ADMIN_EMAILS allowlist; these routes intentionally bypass
  * the per-tenant scoping that the rest of the API enforces.
  */
@@ -123,7 +123,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         to: t.email,
         subject: body.subject,
         template: "custom",
-        data: { body: body.message, businessName: "LeadFlow Pro" },
+        data: { body: body.message, businessName: "TradieJet" },
       });
       queued += 1;
     }

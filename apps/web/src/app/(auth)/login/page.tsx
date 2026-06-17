@@ -47,10 +47,10 @@ export default function LoginPage() {
         </Link>
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4 hover:bg-white/30 transition-colors" aria-label="LeadFlow Pro home">
+          <Link href="/" className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4 hover:bg-white/30 transition-colors" aria-label="TradieJet home">
             <Zap className="w-8 h-8 text-white" />
           </Link>
-          <h1 className="text-3xl font-bold text-white">LeadFlow Pro</h1>
+          <h1 className="text-3xl font-bold text-white">TradieJet</h1>
           <p className="text-brand-100 mt-1">Sign in to your account</p>
         </div>
 
