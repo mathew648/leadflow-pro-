@@ -10,6 +10,7 @@ import { sendBrandedEmail } from "../lib/mailer.js";
 import { seedDefaultAutomations } from "../lib/default-automations.js";
 import { seedStarterCatalog } from "../lib/default-catalog.js";
 import { isPlatformAdmin } from "../lib/platform-admin.js";
+import { PLANS } from "../lib/plans.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -27,6 +28,7 @@ const registerSchema = z.object({
   country: z.enum(["AU", "NZ"]).default("AU"),
   tradeTypes: z.array(z.string()).default([]),
   timezone: z.string().default("Australia/Sydney"),
+  accountType: z.enum(["tradie", "non_tradie"]).default("tradie"),
 });
 
 const refreshSchema = z.object({
@@ -140,7 +142,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
               id: user.tenant.id,
               name: user.tenant.businessName,
               slug: user.tenant.slug,
-              subscriptionTier: user.tenant.subscription?.tier ?? "starter",
+              subscriptionTier: user.tenant.subscription?.tier ?? "sole_trader",
+              accountType: user.tenant.accountType,
               country: user.tenant.country,
               currency: user.tenant.currency,
               logoUrl: user.tenant.logoUrl,
@@ -199,6 +202,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             currency: body.country === "NZ" ? "NZD" : "AUD",
             timezone: body.timezone,
             tradeTypes: body.tradeTypes,
+            accountType: body.accountType,
             gstRate: body.country === "NZ" ? 0.15 : 0.10,
             subscriptionStatus: "trialing",
             trialEndsAt,
@@ -210,15 +214,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
           data: { tenantId: tenant.id },
         });
 
+        // Trial starts on the entry plan for the chosen account type.
+        const entryPlan = body.accountType === "non_tradie" ? PLANS.non_tradie : PLANS.sole_trader;
         await tx.subscription.create({
           data: {
             tenantId: tenant.id,
-            tier: "starter",
+            tier: entryPlan.id,
             status: "trialing",
-            basePriceCents: 9900,
-            maxUsers: 1,
-            maxLeadsPerMonth: 500,
-            storageGb: 5,
+            basePriceCents: entryPlan.priceCents,
+            maxUsers: entryPlan.maxUsers,
+            maxLeadsPerMonth: entryPlan.maxLeadsPerMonth,
+            storageGb: entryPlan.storageGb,
             trialEnd: trialEndsAt,
           },
         });
@@ -335,7 +341,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
               id: tenant.id,
               name: tenant.businessName,
               slug: tenant.slug,
-              subscriptionTier: "starter",
+              subscriptionTier: body.accountType === "non_tradie" ? "non_tradie" : "sole_trader",
+              accountType: tenant.accountType,
               country: tenant.country,
               currency: tenant.currency,
               onboardingStep: tenant.onboardingStep,
@@ -491,6 +498,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             slug: user.tenant.slug,
             subscriptionTier: user.tenant.subscription?.tier,
             subscriptionStatus: user.tenant.subscription?.status,
+            accountType: user.tenant.accountType,
             country: user.tenant.country,
             currency: user.tenant.currency,
             timezone: user.tenant.timezone,

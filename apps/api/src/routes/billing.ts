@@ -20,6 +20,9 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         priceCents: planPriceCents(p, country),
         currency: country === "NZ" ? "NZD" : "AUD",
         maxUsers: p.maxUsers,
+        accountType: p.accountType,
+        blurb: p.blurb,
+        features: p.features,
       })),
     };
   });
@@ -29,7 +32,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     "/billing/checkout",
     { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
     async (request, reply) => {
-      const { plan } = z.object({ plan: z.enum(["starter", "growth", "pro"]) }).parse(request.body);
+      const { plan } = z.object({ plan: z.enum(["sole_trader", "company", "website", "non_tradie"]) }).parse(request.body);
 
       if (!config.STRIPE_SECRET_KEY) {
         return reply.status(503).send({ error: { code: "BILLING_UNAVAILABLE", message: "Billing is not configured" } });

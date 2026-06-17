@@ -18,6 +18,11 @@ enum SubscriptionTier {
   growth
   pro
   enterprise
+  // New plan set (2026)
+  sole_trader
+  company
+  website
+  non_tradie
 }
 
 enum SubscriptionStatus {
@@ -211,6 +216,7 @@ model Tenant {
   gstRate         Decimal  @default(0.10) @db.Decimal(5, 4) @map("gst_rate")
   taxNumber       String?  @db.VarChar(50) @map("tax_number")
 
+  accountType         String              @default("tradie") @db.VarChar(20) @map("account_type")
   subscriptionStatus  SubscriptionStatus  @default(trialing) @map("subscription_status")
   trialEndsAt         DateTime?           @map("trial_ends_at")
   onboardedAt         DateTime?           @map("onboarded_at")

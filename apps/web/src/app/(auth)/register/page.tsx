@@ -27,7 +27,7 @@ const schema = z.object({
   businessName: z.string().min(1, "Required"),
   phone: z.string().optional(),
   country: z.enum(["AU", "NZ"]),
-  tradeTypes: z.array(z.string()).min(1, "Select at least one trade"),
+  tradeTypes: z.array(z.string()).default([]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -36,19 +36,13 @@ export default function RegisterPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
+  const [accountType, setAccountType] = useState<"tradie" | "non_tradie">("tradie");
   const [step, setStep] = useState(1);
 
   const { register, handleSubmit, setValue, watch, trigger, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { country: "AU", tradeTypes: [] },
   });
-
-  // Validate step-1 fields before advancing, so errors (e.g. password < 12 chars)
-  // surface immediately instead of silently blocking the final submit on step 2.
-  async function goToStep2() {
-    const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
-    if (ok) setStep(2);
-  }
 
   function toggleTrade(trade: string) {
     const next = selectedTrades.includes(trade)
@@ -62,13 +56,22 @@ export default function RegisterPage() {
     try {
       const { user } = await registerUser({
         ...values,
-        tradeTypes: selectedTrades,
+        tradeTypes: accountType === "tradie" ? selectedTrades : [],
+        accountType,
       });
       setAuth(user);
       router.push("/dashboard");
     } catch (err: any) {
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     }
+  }
+
+  // Tradies pick trades on step 2; non-tradies submit straight from step 1.
+  async function handlePrimary() {
+    const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
+    if (!ok) return;
+    if (accountType === "tradie") setStep(2);
+    else handleSubmit(onSubmit)();
   }
 
   return (
@@ -100,6 +103,25 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit(onSubmit)}>
             {step === 1 && (
               <div className="space-y-4">
+                <div>
+                  <h2 className="font-semibold text-lg">What kind of business?</h2>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAccountType("tradie")}
+                      className={`px-3 py-2.5 rounded-lg border text-sm font-medium ${accountType === "tradie" ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                    >
+                      🔧 Tradie business
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountType("non_tradie")}
+                      className={`px-3 py-2.5 rounded-lg border text-sm font-medium ${accountType === "non_tradie" ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                    >
+                      💼 Other (lead manager)
+                    </button>
+                  </div>
+                </div>
                 <h2 className="font-semibold text-lg">Your details</h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -141,8 +163,8 @@ export default function RegisterPage() {
                     <Input type="tel" placeholder="+61 4xx xxx xxx" {...register("phone")} />
                   </div>
                 </div>
-                <Button type="button" className="w-full" onClick={goToStep2}>
-                  Next: Select Trade →
+                <Button type="button" className="w-full" onClick={handlePrimary} disabled={isSubmitting}>
+                  {accountType === "tradie" ? "Next: Select Trade →" : (isSubmitting ? "Creating account…" : "Start free trial")}
                 </Button>
               </div>
             )}
