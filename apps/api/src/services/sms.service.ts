@@ -21,7 +21,7 @@ export interface SmsPayload {
 
 export async function sendSms(payload: SmsPayload): Promise<{ messageId: string }> {
   const client = getVonage();
-  const from = payload.from ?? config.VONAGE_FROM_NUMBER ?? "LeadFlow";
+  const from = payload.from ?? config.VONAGE_FROM_NUMBER ?? "TradieJet";
 
   const response = await client.sms.send({
     from,

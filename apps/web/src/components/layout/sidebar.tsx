@@ -66,7 +66,7 @@ export function Sidebar() {
               <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
                 <Zap className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-sm leading-tight">LeadFlow<br/>Pro</span>
+              <span className="font-bold text-base leading-tight">TradieJet</span>
             </Link>
           ) : (
             <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center mx-auto">

@@ -1,4 +1,4 @@
-// LeadFlow Pro service worker — deliberately conservative to avoid stale-content bugs.
+// TradieJet service worker — deliberately conservative to avoid stale-content bugs.
 // - Only cache-first for content-hashed static assets (/_next/static, /icons) — safe forever.
 // - Navigations are network-first with an offline fallback (always fresh HTML).
 // - API and non-GET requests are never touched.
@@ -47,7 +47,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
-  const title = data.title || "LeadFlow Pro";
+  const title = data.title || "TradieJet";
   const options = {
     body: data.body || "",
     icon: "/icons/icon-192.png",

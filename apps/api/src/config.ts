@@ -22,16 +22,16 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().min(64).optional(),
 
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("LeadFlow Pro <noreply@leadflowpro.com>"),
+  EMAIL_FROM: z.string().default("TradieJet <noreply@tradiejet.com>"),
 
   VONAGE_API_KEY: z.string().optional(),
   VONAGE_API_SECRET: z.string().optional(),
-  VONAGE_FROM_NUMBER: z.string().default("LeadFlow"),
+  VONAGE_FROM_NUMBER: z.string().default("TradieJet"),
 
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
-  R2_BUCKET_NAME: z.string().default("leadflow-dev"),
+  R2_BUCKET_NAME: z.string().default("tradiejet-dev"),
   R2_PUBLIC_URL: z.string().url().optional(),
 
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -68,7 +68,7 @@ const envSchema = z.object({
   // Web Push (VAPID) — browser/PWA push notifications.
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT: z.string().default("mailto:support@leadflowpro.com"),
+  VAPID_SUBJECT: z.string().default("mailto:support@tradiejet.com"),
 
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("development"),

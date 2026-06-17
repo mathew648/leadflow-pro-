@@ -14,7 +14,7 @@ function getResend(): Resend | null {
 const FROM = config.EMAIL_FROM;
 
 function renderTemplate(template: string, data: Record<string, unknown>): { html: string; text: string } {
-  const businessName = String(data.businessName ?? "LeadFlow Pro");
+  const businessName = String(data.businessName ?? "TradieJet");
   const primaryColor = String(data.primaryColor ?? "#2563EB");
   const logoUrl = data.logoUrl ? String(data.logoUrl) : "";
   const businessPhone = data.businessPhone ? String(data.businessPhone) : "";
@@ -131,7 +131,7 @@ function renderTemplate(template: string, data: Record<string, unknown>): { html
       const { firstName, inviterBusiness, role, acceptUrl } = data;
       body = `
       <p style="font-size:16px;">Hi ${firstName ?? "there"},</p>
-      <p>You've been invited to join <strong>${inviterBusiness ?? businessName}</strong> on LeadFlow Pro${role ? ` as a <strong>${role}</strong>` : ""}.</p>
+      <p>You've been invited to join <strong>${inviterBusiness ?? businessName}</strong> on TradieJet${role ? ` as a <strong>${role}</strong>` : ""}.</p>
       <p>Click below to set your password and get started:</p>
       <p style="text-align:center;margin:32px 0;">
         <a href="${acceptUrl}" style="background:${primaryColor};color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:600;">

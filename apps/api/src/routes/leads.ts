@@ -296,7 +296,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       notifyBusiness(tenantId, "new_lead", {
         summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via ${lead.source})`,
         link: `/leads/${lead.id}`,
-        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via ${lead.source}. Open LeadFlow Pro.`,
+        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via ${lead.source}. Open TradieJet.`,
       }).catch(() => {});
 
       return reply.status(201).send({ data: lead });

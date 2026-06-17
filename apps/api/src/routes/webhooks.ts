@@ -109,7 +109,7 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
             notifyBusiness(tenantId, "new_lead", {
               summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b> (via Meta Ads)`,
               link: `/leads/${lead.id}`,
-              sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Meta Ads. Open LeadFlow Pro.`,
+              sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Meta Ads. Open TradieJet.`,
             }).catch(() => {});
           });
         } catch (err) {
@@ -427,7 +427,7 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
       notifyBusiness(tenantId, "new_lead", {
         summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via website form)`,
         link: `/leads/${lead.id}`,
-        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via website form. Open LeadFlow Pro.`,
+        sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via website form. Open TradieJet.`,
       }).catch(() => {});
 
       return reply.status(201).send({ data: { received: true } });
@@ -494,7 +494,7 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
     notifyBusiness(tenantId, "new_lead", {
       summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b> (via Google Ads)`,
       link: `/leads/${lead.id}`,
-      sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Google Ads. Open LeadFlow Pro.`,
+      sms: `New lead: ${lead.firstName} ${lead.phone ?? lead.email ?? ""} via Google Ads. Open TradieJet.`,
     }).catch(() => {});
 
     return reply.status(200).send({ received: true });

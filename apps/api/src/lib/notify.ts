@@ -62,7 +62,7 @@ export async function notifyBusiness(tenantId: string, event: BusinessEvent, ctx
         subject: `${SUBJECT[event]} — ${tenant.businessName}`,
         template: "custom",
         data: {
-          body: `${ctx.summary}<br/><br/><a href="${url}">Open in LeadFlow Pro →</a>`,
+          body: `${ctx.summary}<br/><br/><a href="${url}">Open in TradieJet →</a>`,
           businessName: tenant.businessName,
           primaryColor: tenant.primaryColor,
           logoUrl: tenant.logoUrl,

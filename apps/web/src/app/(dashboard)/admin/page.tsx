@@ -60,7 +60,7 @@ export default function AdminPage() {
         <Topbar title="Platform Admin" />
         <div className="p-8 text-center text-muted-foreground">
           <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p>This area is for LeadFlow Pro platform administrators only.</p>
+          <p>This area is for TradieJet platform administrators only.</p>
         </div>
       </div>
     );

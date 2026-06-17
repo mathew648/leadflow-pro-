@@ -92,7 +92,7 @@ export function EnableNotifications() {
           <Bell className="w-4 h-4 mr-1.5" /> {busy ? "Enabling…" : "Enable push notifications"}
         </Button>
       )}
-      <p className="text-xs text-muted-foreground">Get alerts on this device for new leads, approved quotes and payments — even when LeadFlow is closed.</p>
+      <p className="text-xs text-muted-foreground">Get alerts on this device for new leads, approved quotes and payments — even when TradieJet is closed.</p>
     </div>
   );
 }

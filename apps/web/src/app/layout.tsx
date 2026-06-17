@@ -6,10 +6,10 @@ import { Providers } from "@/components/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LeadFlow Pro — Trades Business Management",
+  title: "TradieJet — Trades Business Management",
   description: "AI-powered lead, customer & job management for trades businesses",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "LeadFlow" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "TradieJet" },
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
 };
 

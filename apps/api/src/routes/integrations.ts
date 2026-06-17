@@ -265,7 +265,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // POST /api/v1/integrations/:provider/import — pull existing customers + items into LeadFlow
+  // POST /api/v1/integrations/:provider/import — pull existing customers + items into TradieJet
   fastify.post(
     "/integrations/:provider/import",
     { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
