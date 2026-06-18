@@ -9,6 +9,27 @@ import { config } from "../config.js";
  * details (so they barely type anything). Unauthenticated (signup is pre-login) and
  * rate-limited. Degrades gracefully to manual entry when not configured.
  */
+// Cached NZBN OAuth bearer token (client-credentials, ~60 min validity).
+let nzbnToken: { value: string; exp: number } | null = null;
+async function getNzbnToken(): Promise<string | null> {
+  if (!config.NZBN_CLIENT_ID || !config.NZBN_CLIENT_SECRET) return null; // key-only mode
+  if (nzbnToken && nzbnToken.exp > Date.now() + 60_000) return nzbnToken.value;
+  const res = await fetch(config.NZBN_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: config.NZBN_CLIENT_ID,
+      client_secret: config.NZBN_CLIENT_SECRET,
+    }),
+  });
+  if (!res.ok) return null;
+  const j = (await res.json()) as any;
+  if (!j.access_token) return null;
+  nzbnToken = { value: j.access_token, exp: Date.now() + (Number(j.expires_in ?? 3600) * 1000) };
+  return j.access_token;
+}
+
 export default async function lookupRoutes(fastify: FastifyInstance) {
   fastify.get(
     "/lookup/business",
@@ -16,9 +37,17 @@ export default async function lookupRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const q = z.object({
         country: z.enum(["AU", "NZ"]),
-        number: z.string().min(6).max(20),
+        number: z.string().min(6).max(30),
       }).parse(request.query);
-      const num = q.number.replace(/\s+/g, "");
+      const num = q.number.replace(/\D+/g, ""); // ABN/NZBN are numeric
+
+      // Validate format up front so we don't burn API calls on typos.
+      if (q.country === "AU" && num.length !== 11) {
+        return reply.status(400).send({ error: { code: "INVALID_ABN", message: "An ABN is 11 digits." } });
+      }
+      if (q.country === "NZ" && num.length !== 13) {
+        return reply.status(400).send({ error: { code: "INVALID_NZBN", message: "An NZBN is 13 digits." } });
+      }
 
       try {
         if (q.country === "AU") {
@@ -49,9 +78,16 @@ export default async function lookupRoutes(fastify: FastifyInstance) {
         if (!config.NZBN_API_KEY) {
           return reply.status(503).send({ error: { code: "LOOKUP_UNAVAILABLE", message: "NZBN lookup not configured" } });
         }
-        const res = await fetch(`https://api.business.govt.nz/services/v5/nzbn/entities/${encodeURIComponent(num)}`, {
-          headers: { "Ocp-Apim-Subscription-Key": config.NZBN_API_KEY, Accept: "application/json" },
-        });
+        const headers: Record<string, string> = { "Ocp-Apim-Subscription-Key": config.NZBN_API_KEY, Accept: "application/json" };
+        // Production NZBN needs an OAuth bearer token alongside the subscription key.
+        if (config.NZBN_CLIENT_ID && config.NZBN_CLIENT_SECRET) {
+          const token = await getNzbnToken();
+          if (!token) {
+            return reply.status(503).send({ error: { code: "LOOKUP_UNAVAILABLE", message: "NZBN auth failed — check client credentials / token URL" } });
+          }
+          headers.Authorization = `Bearer ${token}`;
+        }
+        const res = await fetch(`https://api.business.govt.nz/services/v5/nzbn/entities/${encodeURIComponent(num)}`, { headers });
         if (!res.ok) {
           return reply.status(404).send({ error: { code: "NOT_FOUND", message: "NZBN not found" } });
         }

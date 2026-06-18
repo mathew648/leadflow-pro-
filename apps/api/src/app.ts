@@ -62,8 +62,16 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // Register error handler IMMEDIATELY after instance creation, before any plugins,
   // so all child scopes inherit it
   fastify.setErrorHandler((error, request, reply) => {
-    if (error.statusCode === 429) {
-      return reply.status(429).send({ error: { code: "RATE_LIMITED", message: "Too many requests" } });
+    // Rate-limit errors can surface in a few shapes — always return a clean 429
+    // (never a 500) so the client shows a clear "slow down" message, not "internal error".
+    const e = error as any;
+    const isRateLimit =
+      error.statusCode === 429 ||
+      e?.code === "FST_ERR_RATE_LIMIT" ||
+      e?.error?.code === "RATE_LIMITED" ||
+      /rate.?limit|too many requests/i.test(error.message ?? "");
+    if (isRateLimit) {
+      return reply.status(429).send({ error: { code: "RATE_LIMITED", message: "Too many attempts — please wait a moment and try again." } });
     }
     if (
       error instanceof ZodError ||

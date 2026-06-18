@@ -68,7 +68,11 @@ const envSchema = z.object({
 
   // Business-register lookups (auto-fill business details at signup).
   ABR_GUID: z.string().optional(),       // Australian Business Register ABN Lookup GUID (free)
-  NZBN_API_KEY: z.string().optional(),   // NZBN API subscription key
+  NZBN_API_KEY: z.string().optional(),   // NZBN API subscription key (Ocp-Apim-Subscription-Key)
+  // NZBN production requires OAuth client-credentials in addition to the subscription key.
+  NZBN_CLIENT_ID: z.string().optional(),
+  NZBN_CLIENT_SECRET: z.string().optional(),
+  NZBN_TOKEN_URL: z.string().default("https://api.business.govt.nz/services/token"),
 
   // Web Push (VAPID) — browser/PWA push notifications.
   VAPID_PUBLIC_KEY: z.string().optional(),

@@ -74,5 +74,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: API_URL            # web proxies /api/* to the API service (see next.config.ts)
-        value: https://leadflow-pro-api.onrender.com
+      - key: API_URL            # web proxies /api/* to the API service (see next.config.ts).
+        value: https://leadflow-pro-api-37bj.onrender.com  # MUST be the API host (with -37bj). NOT the tradiejet.com domain — that creates a redirect loop.

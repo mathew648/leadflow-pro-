@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Zap, LayoutDashboard, Users2, UserCheck, Briefcase, FileText,
+  LayoutDashboard, Users2, UserCheck, Briefcase, FileText,
   Receipt, Calendar, Settings, MessageSquare, BarChart3, LogOut,
   X, Sparkles, Package, Workflow, HardHat, ShieldCheck,
 } from "lucide-react";
+import { JetMark } from "@/components/logo";
 import { cn, initials } from "@/lib/utils";
 import { useAuthStore, useUIStore } from "@/lib/store";
 import { logout } from "@/lib/auth";
@@ -85,7 +86,7 @@ export function Sidebar() {
         <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={closeOnMobile}>
             <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
-              <Zap className="w-4 h-4 text-white" />
+              <JetMark className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-base">TradieJet</span>
           </Link>

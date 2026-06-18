@@ -40,7 +40,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/auth/login",
     {
-      config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
+      // Brute-force protection, but generous enough for retries + shared office/mobile IPs.
+      config: { rateLimit: { max: 30, timeWindow: "5 minutes" } },
     },
     async (request, reply) => {
       const body = loginSchema.parse(request.body);
@@ -97,14 +98,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // Update last login
-      await prisma.user.update({
+      // Update last login (fire-and-forget — don't make the user wait on this write)
+      prisma.user.update({
         where: { id: user.id },
         data: {
           lastLoginAt: new Date(),
           lastLoginIp: request.ip,
         },
-      });
+      }).catch(() => {});
 
       writeAuditLog({
         tenantId: user.tenantId,
@@ -159,7 +160,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/auth/register",
     {
-      config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+      config: { rateLimit: { max: 20, timeWindow: "1 hour" } },
     },
     async (request, reply) => {
       const body = registerSchema.parse(request.body);
