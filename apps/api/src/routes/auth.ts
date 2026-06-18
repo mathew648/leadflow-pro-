@@ -97,14 +97,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // Update last login
-      await prisma.user.update({
+      // Update last login (fire-and-forget — don't make the user wait on this write)
+      prisma.user.update({
         where: { id: user.id },
         data: {
           lastLoginAt: new Date(),
           lastLoginIp: request.ip,
         },
-      });
+      }).catch(() => {});
 
       writeAuditLog({
         tenantId: user.tenantId,

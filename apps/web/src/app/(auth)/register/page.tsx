@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Zap, CheckCircle2, ArrowLeft } from "lucide-react";
+import { CheckCircle2, ArrowLeft } from "lucide-react";
+import { JetMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,7 +118,7 @@ export default function RegisterPage() {
         </Link>
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur mb-4 hover:bg-white/30 transition-colors" aria-label="TradieJet home">
-            <Zap className="w-8 h-8 text-white" />
+            <JetMark className="w-8 h-8 text-white" />
           </Link>
           <h1 className="text-3xl font-bold text-white">Start free trial</h1>
           <p className="text-brand-100 mt-1">14 days free — no credit card required</p>
