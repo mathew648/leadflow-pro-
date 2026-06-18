@@ -28,6 +28,11 @@ const envSchema = z.object({
   VONAGE_API_SECRET: z.string().optional(),
   VONAGE_FROM_NUMBER: z.string().default("TradieJet"),
 
+  // Twilio WhatsApp (admin → tradie messaging).
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
+
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
