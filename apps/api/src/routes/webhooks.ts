@@ -531,6 +531,25 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
     if (!sourceConfig) return reply.status(200).send({ received: false, reason: "unknown_key" });
     const tenantId = sourceConfig.tenantId;
 
+    // Forwarding-verification email (Gmail/Outlook send a code before they'll forward).
+    // Capture the code + confirm link and surface them in Settings instead of making a lead.
+    const isVerification =
+      /forwarding-noreply@google\.com|microsoft|outlook|postmaster/i.test(from) ||
+      /forwarding confirmation|confirm.*forward|verify .*forward|forwarding verification|confirmation code/i.test(`${subject} ${text}`);
+    if (isVerification) {
+      const code =
+        (subject.match(/#?\s*(\d{6,12})/) ?? [])[1] ??
+        (text.match(/confirmation code[:\s#]*([0-9]{5,12})/i) ?? [])[1] ??
+        (text.match(/\b(\d{9})\b/) ?? [])[1] ?? null;
+      const links = text.match(/https?:\/\/[^\s"'<>)]+/g) ?? [];
+      const link = links.find((u) => /google\.com|confirm|verif|forward/i.test(u)) ?? links[0] ?? null;
+      await prisma.leadSourceConfig.update({
+        where: { id: sourceConfig.id },
+        data: { config: { ...(sourceConfig.config as any), verification: { code, link, from, subject, receivedAt: new Date().toISOString() } } },
+      }).catch(() => {});
+      return reply.status(200).send({ received: true, verification: true });
+    }
+
     const { parseLeadEmail, detectPortal } = await import("../lib/lead-email-parser.js");
     const portal = detectPortal(from, subject);
     const parsed = await parseLeadEmail({ from, subject, text });

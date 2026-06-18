@@ -403,9 +403,26 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         data: {
           address: `leads-${emailKey}@${config.INBOUND_EMAIL_DOMAIN}`,
           lastEventAt: sourceConfig.lastEventAt,
+          verification: (sourceConfig.config as any).verification ?? null,
           instructions: "In each lead portal (Builderscrack, hipages, NoCowboys, Oneflare…), set lead notifications to this address — or add an auto-forward rule in your email. New job leads become leads here automatically.",
         },
       };
+    }
+  );
+
+  // POST /api/v1/leads/inbound-email/clear-verification — dismiss a captured forwarding code.
+  fastify.post(
+    "/leads/inbound-email/clear-verification",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const cfg = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId: request.tenantId, source: "email" } },
+      });
+      if (cfg) {
+        const { verification, ...rest } = (cfg.config as any) ?? {};
+        await prisma.leadSourceConfig.update({ where: { id: cfg.id }, data: { config: rest } });
+      }
+      return { data: { cleared: true } };
     }
   );
 

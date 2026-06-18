@@ -746,6 +746,11 @@ function LeadSourcesTab() {
     onSuccess: () => { toast({ title: "Facebook disconnected" }); qc.invalidateQueries({ queryKey: ["meta-status"] }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+  const clearVerification = useMutation({
+    mutationFn: () => api.post<any>("/leads/inbound-email/clear-verification", {}),
+    onSuccess: () => { toast({ title: "Dismissed" }); qc.invalidateQueries({ queryKey: ["inbound-email"] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   const copy = (text: string, label: string) => {
     navigator.clipboard?.writeText(text);
@@ -825,10 +830,35 @@ function LeadSourcesTab() {
             </div>
             {ie.lastEventAt && <span className="text-xs text-muted-foreground">Last lead received: {new Date(ie.lastEventAt).toLocaleString("en-AU")}</span>}
           </div>
-          <p className="text-xs text-muted-foreground">
-            In each portal (Builderscrack, hipages, NoCowboys, Oneflare, ServiceSeeking, Airtasker…), set your lead/job
-            notifications to this address — or add an auto-forward rule in Gmail/Outlook. Works with any platform that emails you.
-          </p>
+          {/* Captured forwarding-verification code (Gmail/Outlook) */}
+          {ie.verification && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+              <p className="text-sm font-medium text-amber-900">⏳ Forwarding confirmation received</p>
+              {ie.verification.code && (
+                <p className="text-sm text-amber-900">Confirmation code: <strong className="font-mono">{ie.verification.code}</strong> <CopyBtn text={ie.verification.code} label="Code" /></p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {ie.verification.link && (
+                  <a href={ie.verification.link} target="_blank" rel="noopener noreferrer">
+                    <Button type="button" size="sm">Confirm forwarding →</Button>
+                  </a>
+                )}
+                <Button type="button" size="sm" variant="outline" onClick={() => clearVerification.mutate()} disabled={clearVerification.isPending}>Dismiss</Button>
+              </div>
+              <p className="text-xs text-amber-800">Paste the code into Gmail/Outlook, or click Confirm. Then your portal leads will flow in automatically.</p>
+            </div>
+          )}
+
+          {/* How-to guide */}
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">How to forward your portal leads →</summary>
+            <div className="mt-2 space-y-2 pl-1">
+              <p><strong>Option A — set it in the portal:</strong> In Builderscrack / hipages / NoCowboys / Oneflare account settings, set your lead/job notification email to the address above.</p>
+              <p><strong>Option B — auto-forward from your inbox:</strong></p>
+              <p className="pl-3"><strong>Gmail:</strong> Settings → Filters → Create filter → From: <code className="bg-muted px-1 rounded">builderscrack.co.nz</code> (etc.) → Forward to → your address above. Gmail sends a confirmation code — it appears right here for you to confirm.</p>
+              <p className="pl-3"><strong>Outlook:</strong> Settings → Rules → Add rule → From contains the portal → Forward to → your address above.</p>
+            </div>
+          </details>
         </CardContent>
       </Card>
 
