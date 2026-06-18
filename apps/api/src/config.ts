@@ -52,6 +52,9 @@ const envSchema = z.object({
   MYOB_CLIENT_SECRET: z.string().optional(),
   MYOB_REDIRECT_URI: z.string().url().optional(),
   MYOB_API_KEY: z.string().optional(),
+  // Post-March-2025 MYOB requires granular space-separated scopes + offline_access
+  // (the legacy "CompanyFile" scope only works for keys created before 12 Mar 2025).
+  MYOB_SCOPE: z.string().default("sme-company-file sme-contact sme-inventory sme-sale offline_access"),
 
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),

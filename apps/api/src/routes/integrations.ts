@@ -164,7 +164,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         client_id: config.MYOB_CLIENT_ID ?? "",
         redirect_uri: config.MYOB_REDIRECT_URI ?? "",
         response_type: "code",
-        scope: "CompanyFile",
+        scope: config.MYOB_SCOPE, // new granular scopes + offline_access (post-March-2025)
         state,
       });
       return { data: { authUrl: `${MYOB_AUTH_URL}?${params}` } };
