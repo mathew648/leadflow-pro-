@@ -221,7 +221,7 @@ export default function MarketingHome() {
       </section>
 
       {/* How it works */}
-      <section className="bg-white">
+      <section className="bg-gray-50 border-y">
         <div className="mx-auto max-w-6xl px-4 py-20">
           <div className="text-center max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold">How it works</h2>
