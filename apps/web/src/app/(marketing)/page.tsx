@@ -23,7 +23,7 @@ const FAQS = [
 ];
 
 const FEATURES = [
-  { icon: Inbox, title: "Capture every lead", desc: "Google, Meta, your website form, or manual — leads land in one inbox and get an instant auto-reply." },
+  { icon: Inbox, title: "Every lead in one inbox", desc: "Website, Google, Meta — even your Builderscrack, hipages & NoCowboys jobs. Forward them in and they all land in one place with an instant auto-reply." },
   { icon: FileText, title: "Quote in minutes", desc: "Build quotes from your price book. Customers review, e-sign and approve from their phone." },
   { icon: CalendarCheck, title: "Schedule & track jobs", desc: "Turn approved quotes into jobs, assign your team, and track them through to completion." },
   { icon: CreditCard, title: "Invoice & get paid", desc: "Send branded invoices with online card payment. Mark paid and it syncs to Xero automatically." },
@@ -84,7 +84,7 @@ export default function MarketingHome() {
           <div className="flex flex-col lg:flex-row items-center justify-center gap-x-10 gap-y-3 text-sm">
             <span className="text-gray-500">
               <strong className="text-gray-900">Captures leads from</strong>{" "}
-              {["Google Ads", "Meta", "Your website"].map((s) => (
+              {["Website", "Google", "Meta", "Builderscrack", "hipages", "NoCowboys"].map((s) => (
                 <span key={s} className="inline-block mx-1 rounded-md bg-gray-100 px-2.5 py-1 font-medium text-gray-700">{s}</span>
               ))}
             </span>
@@ -118,8 +118,26 @@ export default function MarketingHome() {
         </div>
       </section>
 
+      {/* USP — one inbox for every lead, incl. portal leads */}
+      <section className="bg-brand-50 border-y">
+        <div className="mx-auto max-w-5xl px-4 py-16 text-center">
+          <span className="inline-block rounded-full bg-brand-600/10 text-brand-700 px-3 py-1 text-xs font-semibold">One inbox for everything</span>
+          <h2 className="mt-3 text-3xl font-bold">Stop juggling five lead apps</h2>
+          <p className="mt-3 text-gray-700 max-w-2xl mx-auto leading-relaxed">
+            Already getting jobs from <strong>Builderscrack, hipages, NoCowboys or Oneflare</strong>? Forward them into
+            TradieJet and <strong>every lead lands in one place</strong> — auto-replied, followed up and tracked right
+            alongside your website, Google and Meta leads. No more missed jobs scattered across a dozen tabs and texts.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
+            {["Builderscrack", "hipages", "NoCowboys", "Oneflare", "ServiceSeeking", "Airtasker"].map((p) => (
+              <span key={p} className="rounded-full bg-white border px-3 py-1 text-gray-700">{p}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
-      <section className="bg-gray-50 border-y">
+      <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 py-20">
           <div className="text-center max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold">How it works</h2>

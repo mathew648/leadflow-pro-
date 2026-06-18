@@ -499,4 +499,116 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
 
     return reply.status(200).send({ received: true });
   });
+
+  // POST /api/v1/webhooks/email — inbound "Email-to-Lead". A tradie forwards their
+  // Builderscrack / hipages / NoCowboys / etc. notification emails to a unique address
+  // (leads-<key>@in.tradiejet.com). The mail service posts the email here; we resolve the
+  // tenant by <key>, AI-parse the customer details, and create a lead tagged with the portal.
+  fastify.post("/webhooks/email", async (request, reply) => {
+    // Accept JSON (Cloudflare/Postmark) OR multipart/form-data (SendGrid Inbound Parse / Mailgun).
+    let b: any = {};
+    if (typeof (request as any).isMultipart === "function" && (request as any).isMultipart()) {
+      try {
+        for await (const part of (request as any).parts()) {
+          if (part.type === "field") b[part.fieldname] = part.value;
+        }
+      } catch { /* fall through with whatever we collected */ }
+    } else {
+      b = (request.body as any) ?? {};
+    }
+
+    // Optional shared secret — sent as a header, a body field, or a ?secret= query param.
+    if (config.INBOUND_EMAIL_SECRET) {
+      const provided = request.headers["x-inbound-secret"] ?? b.secret ?? (request.query as any)?.secret;
+      if (provided !== config.INBOUND_EMAIL_SECRET) {
+        return reply.status(401).send({ error: { code: "UNAUTHORIZED", message: "Bad secret" } });
+      }
+    }
+
+    // Accept the common field names across providers (SendGrid / Mailgun / Postmark / Cloudflare).
+    const to = String(b.to ?? b.To ?? b.recipient ?? "").toLowerCase();
+    const from = String(b.from ?? b.From ?? b.sender ?? "");
+    const subject = String(b.subject ?? b.Subject ?? "");
+    const text = String(b.text ?? b.TextBody ?? b["body-plain"] ?? b["stripped-text"] ?? b.html ?? b.HtmlBody ?? "");
+
+    const m = to.match(/leads-([a-z0-9]+)@/i);
+    if (!m) return reply.status(200).send({ received: false, reason: "no_key" });
+    const emailKey = m[1];
+
+    const sourceConfig = await prisma.leadSourceConfig.findFirst({
+      where: { source: "email", config: { path: ["emailKey"], equals: emailKey } },
+    });
+    if (!sourceConfig) return reply.status(200).send({ received: false, reason: "unknown_key" });
+    const tenantId = sourceConfig.tenantId;
+
+    // Forwarding-verification email (Gmail/Outlook send a code before they'll forward).
+    // Capture the code + confirm link and surface them in Settings instead of making a lead.
+    const isVerification =
+      /forwarding-noreply@google\.com|microsoft|outlook|postmaster/i.test(from) ||
+      /forwarding confirmation|confirm.*forward|verify .*forward|forwarding verification|confirmation code/i.test(`${subject} ${text}`);
+    if (isVerification) {
+      const code =
+        (subject.match(/#?\s*(\d{6,12})/) ?? [])[1] ??
+        (text.match(/confirmation code[:\s#]*([0-9]{5,12})/i) ?? [])[1] ??
+        (text.match(/\b(\d{9})\b/) ?? [])[1] ?? null;
+      const links = text.match(/https?:\/\/[^\s"'<>)]+/g) ?? [];
+      const link = links.find((u) => /google\.com|confirm|verif|forward/i.test(u)) ?? links[0] ?? null;
+      await prisma.leadSourceConfig.update({
+        where: { id: sourceConfig.id },
+        data: { config: { ...(sourceConfig.config as any), verification: { code, link, from, subject, receivedAt: new Date().toISOString() } } },
+      }).catch(() => {});
+      return reply.status(200).send({ received: true, verification: true });
+    }
+
+    const { parseLeadEmail, detectPortal } = await import("../lib/lead-email-parser.js");
+    const portal = detectPortal(from, subject);
+    const parsed = await parseLeadEmail({ from, subject, text });
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { country: true } });
+    const phone = parsed.phone ? normalisePhone(parsed.phone, tenant?.country ?? "AU") : null;
+    const email = parsed.email && !/noreply|no-reply/i.test(parsed.email) ? parsed.email.toLowerCase() : null;
+
+    // Dedupe against active/converted leads.
+    if (email || phone) {
+      const dup = await prisma.lead.findFirst({
+        where: {
+          tenantId, deletedAt: null, status: { in: ["active", "converted"] },
+          OR: [...(phone ? [{ phone }] : []), ...(email ? [{ email }] : [])],
+        },
+      });
+      if (dup) return reply.status(200).send({ received: true, deduped: true });
+    }
+
+    const defaultStage = await prisma.pipelineStage.findFirst({ where: { tenantId, isDefault: true } });
+    const lead = await prisma.lead.create({
+      data: {
+        tenantId,
+        source: "email",
+        sourceDetail: portal,
+        firstName: parsed.firstName || "New",
+        lastName: parsed.lastName || (portal !== "Email" ? portal : "lead"),
+        email,
+        phone,
+        serviceRequired: parsed.serviceRequired ?? undefined,
+        stageId: defaultStage?.id,
+        status: "active",
+        rawPayload: { from, subject, parsed } as any,
+      },
+    });
+
+    await prisma.leadActivity.create({
+      data: { tenantId, leadId: lead.id, type: "lead_created", description: `Lead imported from ${portal}` },
+    }).catch(() => {});
+    await prisma.leadSourceConfig.update({ where: { id: sourceConfig.id }, data: { lastEventAt: new Date() } }).catch(() => {});
+
+    await enqueueAutomation({ tenantId, triggerType: "lead_created", entityType: "lead", entityId: lead.id, entityData: { source: "email", portal } });
+    await enqueueAIScoring({ tenantId, leadId: lead.id });
+    notifyBusiness(tenantId, "new_lead", {
+      summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via ${portal})`,
+      link: `/leads/${lead.id}`,
+      sms: `New lead via ${portal}: ${lead.firstName} ${lead.phone ?? lead.email ?? ""}. Open TradieJet.`,
+    }).catch(() => {});
+
+    return reply.status(201).send({ data: { received: true, portal } });
+  });
 }

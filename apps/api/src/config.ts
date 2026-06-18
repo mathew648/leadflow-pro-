@@ -74,6 +74,10 @@ const envSchema = z.object({
   NZBN_CLIENT_SECRET: z.string().optional(),
   NZBN_TOKEN_URL: z.string().default("https://api.business.govt.nz/services/token"),
 
+  // Email-to-Lead — forward portal (Builderscrack/hipages/etc.) notification emails in.
+  INBOUND_EMAIL_DOMAIN: z.string().default("in.tradiejet.com"),
+  INBOUND_EMAIL_SECRET: z.string().optional(), // optional shared secret the mail service sends
+
   // Web Push (VAPID) — browser/PWA push notifications.
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

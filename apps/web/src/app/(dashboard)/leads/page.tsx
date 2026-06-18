@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, List, Columns, Phone, Mail, Star, ChevronRight } from "lucide-react";
@@ -101,6 +101,10 @@ export default function LeadsPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [view, setView] = useState<View>("kanban");
+  // The kanban board scrolls sideways — default to the list view on phones.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) setView("list");
+  }, []);
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ ...BLANK_LEAD });

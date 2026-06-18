@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { nanoid } from "nanoid";
+import { nanoid, customAlphabet } from "nanoid";
 import { prisma } from "../lib/prisma.js";
 import { normalisePhone, generateNumber, encodeCursor, decodeCursor, calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
 import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
@@ -376,6 +376,53 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
           instructions: "In Google Ads, open your Lead Form asset → Delivery → Webhook integration. Paste the Webhook URL and Key, then send test data.",
         },
       };
+    }
+  );
+
+  // GET /api/v1/leads/inbound-email — the tenant's unique Email-to-Lead address.
+  // Forward Builderscrack/hipages/etc. notification emails here → they become leads.
+  fastify.get(
+    "/leads/inbound-email",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const { tenantId } = request;
+      const genKey = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 12);
+      let sourceConfig = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId, source: "email" } },
+      });
+      if (!sourceConfig || !(sourceConfig.config as any)?.emailKey) {
+        const emailKey = genKey();
+        sourceConfig = await prisma.leadSourceConfig.upsert({
+          where: { tenantId_source: { tenantId, source: "email" } },
+          create: { tenantId, source: "email", isActive: true, config: { emailKey } },
+          update: { isActive: true, config: { emailKey } },
+        });
+      }
+      const emailKey = (sourceConfig.config as any).emailKey as string;
+      return {
+        data: {
+          address: `leads-${emailKey}@${config.INBOUND_EMAIL_DOMAIN}`,
+          lastEventAt: sourceConfig.lastEventAt,
+          verification: (sourceConfig.config as any).verification ?? null,
+          instructions: "In each lead portal (Builderscrack, hipages, NoCowboys, Oneflare…), set lead notifications to this address — or add an auto-forward rule in your email. New job leads become leads here automatically.",
+        },
+      };
+    }
+  );
+
+  // POST /api/v1/leads/inbound-email/clear-verification — dismiss a captured forwarding code.
+  fastify.post(
+    "/leads/inbound-email/clear-verification",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const cfg = await prisma.leadSourceConfig.findUnique({
+        where: { tenantId_source: { tenantId: request.tenantId, source: "email" } },
+      });
+      if (cfg) {
+        const { verification, ...rest } = (cfg.config as any) ?? {};
+        await prisma.leadSourceConfig.update({ where: { id: cfg.id }, data: { config: rest } });
+      }
+      return { data: { cleared: true } };
     }
   );
 
