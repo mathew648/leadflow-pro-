@@ -1,8 +1,23 @@
 import Link from "next/link";
 import {
   Zap, Inbox, FileText, CalendarCheck, CreditCard, Bot, BarChart3,
-  ArrowRight, MapPin, Smartphone, ShieldCheck, Star,
+  ArrowRight, ArrowDown, MapPin, Smartphone, ShieldCheck, Star,
 } from "lucide-react";
+
+const LEAD_SOURCES = [
+  { name: "Website", short: "W", color: "#0EA5E9" },
+  { name: "Google", short: "G", color: "#EA4335" },
+  { name: "Meta", short: "f", color: "#1877F2" },
+  { name: "Builderscrack", short: "B", color: "#F97316" },
+  { name: "hipages", short: "h", color: "#FB7185" },
+  { name: "NoCowboys", short: "N", color: "#16A34A" },
+];
+
+const INBOX_LEADS = [
+  { initials: "SM", name: "Sarah M.", job: "Switchboard upgrade", source: "Builderscrack", tag: "#FFEDD5", tagText: "#C2410C" },
+  { initials: "DK", name: "Dave K.", job: "Hot water repair", source: "hipages", tag: "#FFE4E6", tagText: "#BE123C" },
+  { initials: "AC", name: "Acme Cafe", job: "Lighting fit-out", source: "Website", tag: "#E0F2FE", tagText: "#0369A1" },
+];
 import { HeroMockup } from "@/components/hero-mockup";
 import { InstallAppButton } from "@/components/install-app";
 
@@ -119,19 +134,59 @@ export default function MarketingHome() {
       </section>
 
       {/* USP — one inbox for every lead, incl. portal leads */}
-      <section className="bg-brand-50 border-y">
-        <div className="mx-auto max-w-5xl px-4 py-16 text-center">
-          <span className="inline-block rounded-full bg-brand-600/10 text-brand-700 px-3 py-1 text-xs font-semibold">One inbox for everything</span>
-          <h2 className="mt-3 text-3xl font-bold">Stop juggling five lead apps</h2>
-          <p className="mt-3 text-gray-700 max-w-2xl mx-auto leading-relaxed">
-            Already getting jobs from <strong>Builderscrack, hipages, NoCowboys or Oneflare</strong>? Forward them into
-            TradieJet and <strong>every lead lands in one place</strong> — auto-replied, followed up and tracked right
-            alongside your website, Google and Meta leads. No more missed jobs scattered across a dozen tabs and texts.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
-            {["Builderscrack", "hipages", "NoCowboys", "Oneflare", "ServiceSeeking", "Airtasker"].map((p) => (
-              <span key={p} className="rounded-full bg-white border px-3 py-1 text-gray-700">{p}</span>
-            ))}
+      <section className="bg-gradient-to-b from-white to-brand-50 border-y">
+        <div className="mx-auto max-w-6xl px-4 py-20">
+          <div className="text-center max-w-2xl mx-auto">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600/10 text-brand-700 px-3 py-1 text-xs font-semibold">
+              <Inbox className="w-3.5 h-3.5" /> One inbox for everything
+            </span>
+            <h2 className="mt-4 text-3xl sm:text-4xl font-bold">Stop juggling five lead apps</h2>
+            <p className="mt-3 text-gray-600 leading-relaxed">
+              Website, Google, Meta — and your <strong>Builderscrack, hipages &amp; NoCowboys</strong> jobs — all flow
+              into one place, auto-replied and followed up. No more missed jobs scattered across a dozen tabs.
+            </p>
+          </div>
+
+          {/* Visual: many sources → one inbox */}
+          <div className="mt-14 grid lg:grid-cols-[1fr_auto_1.15fr] gap-6 lg:gap-10 items-center max-w-4xl mx-auto">
+            {/* Sources */}
+            <div className="grid grid-cols-2 gap-3">
+              {LEAD_SOURCES.map((s) => (
+                <div key={s.name} className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 shadow-sm">
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: s.color }}>{s.short}</span>
+                  <span className="text-sm font-medium text-gray-700 truncate">{s.name}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Converge arrow */}
+            <div className="flex items-center justify-center">
+              <ArrowRight className="hidden lg:block w-10 h-10 text-brand-400" />
+              <ArrowDown className="lg:hidden w-8 h-8 text-brand-400" />
+            </div>
+
+            {/* TradieJet inbox card */}
+            <div className="rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 h-11 bg-brand-600 text-white">
+                <Inbox className="w-4 h-4" />
+                <span className="text-sm font-semibold">TradieJet — all your leads</span>
+              </div>
+              <div className="p-3 space-y-2">
+                {INBOX_LEADS.map((l) => (
+                  <div key={l.name} className="flex items-center gap-3 rounded-lg border p-2.5">
+                    <span className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{l.initials}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-tight text-gray-900">{l.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{l.job}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 flex-shrink-0" style={{ background: l.tag, color: l.tagText }}>{l.source}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 px-1 pt-1 text-xs text-green-600 font-medium">
+                  <Zap className="w-3.5 h-3.5" fill="currentColor" /> Auto-replied in seconds
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
