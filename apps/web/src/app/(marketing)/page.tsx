@@ -113,10 +113,10 @@ export default function MarketingHome() {
       {/* Integrations strip */}
       <section className="border-b bg-white">
         <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="flex flex-col lg:flex-row items-center justify-center gap-x-12 gap-y-5">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col lg:flex-row items-center justify-center gap-x-12 gap-y-6">
+            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3">
               <span className="text-sm font-semibold text-gray-900">Captures leads from</span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 {CAPTURE_PARTNERS.map(({ name, color, Icon }) => (
                   <span key={name} className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm">
                     <Icon className="w-4 h-4" style={{ color }} /> {name}
@@ -126,9 +126,9 @@ export default function MarketingHome() {
               </div>
             </div>
             <span className="hidden lg:block w-px h-8 bg-gray-200" />
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3">
               <span className="text-sm font-semibold text-gray-900">Syncs with</span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 {SYNC_PARTNERS.map(({ name, color, Icon }) => (
                   <span key={name} className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm">
                     <Icon className="w-4 h-4" style={{ color }} /> {name}
