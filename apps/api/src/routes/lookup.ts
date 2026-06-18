@@ -16,9 +16,17 @@ export default async function lookupRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const q = z.object({
         country: z.enum(["AU", "NZ"]),
-        number: z.string().min(6).max(20),
+        number: z.string().min(6).max(30),
       }).parse(request.query);
-      const num = q.number.replace(/\s+/g, "");
+      const num = q.number.replace(/\D+/g, ""); // ABN/NZBN are numeric
+
+      // Validate format up front so we don't burn API calls on typos.
+      if (q.country === "AU" && num.length !== 11) {
+        return reply.status(400).send({ error: { code: "INVALID_ABN", message: "An ABN is 11 digits." } });
+      }
+      if (q.country === "NZ" && num.length !== 13) {
+        return reply.status(400).send({ error: { code: "INVALID_NZBN", message: "An NZBN is 13 digits." } });
+      }
 
       try {
         if (q.country === "AU") {
