@@ -1,16 +1,33 @@
 import Link from "next/link";
+import type { ComponentType, CSSProperties } from "react";
 import {
   Zap, Inbox, FileText, CalendarCheck, CreditCard, Bot, BarChart3,
-  ArrowRight, ArrowDown, MapPin, Smartphone, ShieldCheck, Star,
+  ArrowRight, ArrowDown, MapPin, Smartphone, ShieldCheck, Star, Globe,
 } from "lucide-react";
+import { SiGoogle, SiMeta, SiStripe, SiXero, SiMyob } from "react-icons/si";
 
-const LEAD_SOURCES = [
-  { name: "Website", short: "W", color: "#0EA5E9" },
-  { name: "Google", short: "G", color: "#EA4335" },
-  { name: "Meta", short: "f", color: "#1877F2" },
-  { name: "Builderscrack", short: "B", color: "#F97316" },
-  { name: "hipages", short: "h", color: "#FB7185" },
-  { name: "NoCowboys", short: "N", color: "#16A34A" },
+type IconCmp = ComponentType<{ className?: string; style?: CSSProperties }>;
+
+// Partners we connect to get their real logo; lead marketplaces stay as branded initials.
+const LEAD_SOURCES: { name: string; color: string; Icon?: IconCmp; short?: string }[] = [
+  { name: "Website", color: "#0EA5E9", Icon: Globe },
+  { name: "Google", color: "#4285F4", Icon: SiGoogle },
+  { name: "Meta", color: "#0866FF", Icon: SiMeta },
+  { name: "Builderscrack", color: "#F97316", short: "B" },
+  { name: "hipages", color: "#FB7185", short: "h" },
+  { name: "NoCowboys", color: "#16A34A", short: "N" },
+];
+
+// Integration partners (real logos) for the strip.
+const CAPTURE_PARTNERS: { name: string; color: string; Icon: IconCmp }[] = [
+  { name: "Website", color: "#0EA5E9", Icon: Globe },
+  { name: "Google", color: "#4285F4", Icon: SiGoogle },
+  { name: "Meta", color: "#0866FF", Icon: SiMeta },
+];
+const SYNC_PARTNERS: { name: string; color: string; Icon: IconCmp }[] = [
+  { name: "Xero", color: "#13B5EA", Icon: SiXero },
+  { name: "MYOB", color: "#6100A5", Icon: SiMyob },
+  { name: "Stripe", color: "#635BFF", Icon: SiStripe },
 ];
 
 const INBOX_LEADS = [
@@ -96,21 +113,31 @@ export default function MarketingHome() {
       {/* Integrations strip */}
       <section className="border-b bg-white">
         <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="flex flex-col lg:flex-row items-center justify-center gap-x-10 gap-y-3 text-sm">
-            <span className="text-gray-500">
-              <strong className="text-gray-900">Captures leads from</strong>{" "}
-              {["Website", "Google", "Meta", "Builderscrack", "hipages", "NoCowboys"].map((s) => (
-                <span key={s} className="inline-block mx-1 rounded-md bg-gray-100 px-2.5 py-1 font-medium text-gray-700">{s}</span>
-              ))}
-            </span>
-            <span className="hidden lg:block text-gray-300">|</span>
-            <span className="text-gray-500">
-              <strong className="text-gray-900">Syncs with</strong>{" "}
-              {["Xero", "MYOB", "Stripe"].map((s) => (
-                <span key={s} className="inline-block mx-1 rounded-md bg-gray-100 px-2.5 py-1 font-medium text-gray-700">{s}</span>
-              ))}
-            </span>
+          <div className="flex flex-col lg:flex-row items-center justify-center gap-x-12 gap-y-5">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-gray-900">Captures leads from</span>
+              <div className="flex items-center gap-2">
+                {CAPTURE_PARTNERS.map(({ name, color, Icon }) => (
+                  <span key={name} className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm">
+                    <Icon className="w-4 h-4" style={{ color }} /> {name}
+                  </span>
+                ))}
+                <span className="text-sm text-gray-400">+ Builderscrack, hipages…</span>
+              </div>
+            </div>
+            <span className="hidden lg:block w-px h-8 bg-gray-200" />
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-gray-900">Syncs with</span>
+              <div className="flex items-center gap-2">
+                {SYNC_PARTNERS.map(({ name, color, Icon }) => (
+                  <span key={name} className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm">
+                    <Icon className="w-4 h-4" style={{ color }} /> {name}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
+          <p className="mt-4 text-center text-[11px] text-gray-400">Google, Meta, Xero, MYOB &amp; Stripe are trademarks of their respective owners. TradieJet is not affiliated with or endorsed by them.</p>
         </div>
       </section>
 
@@ -153,7 +180,9 @@ export default function MarketingHome() {
             <div className="grid grid-cols-2 gap-3">
               {LEAD_SOURCES.map((s) => (
                 <div key={s.name} className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 shadow-sm">
-                  <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: s.color }}>{s.short}</span>
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: s.color }}>
+                    {s.Icon ? <s.Icon className="w-4 h-4" /> : s.short}
+                  </span>
                   <span className="text-sm font-medium text-gray-700 truncate">{s.name}</span>
                 </div>
               ))}
