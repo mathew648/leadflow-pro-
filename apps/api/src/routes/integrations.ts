@@ -116,7 +116,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
       });
 
       // Redirect to settings page
-      return reply.redirect(`${config.APP_URL}/settings/integrations?xero=connected`);
+      return reply.redirect(`${config.APP_URL}/settings?tab=integrations&xero=connected`);
     }
   );
 
@@ -232,7 +232,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
       },
     });
 
-    return reply.redirect(`${config.APP_URL}/settings?myob=connected`);
+    return reply.redirect(`${config.APP_URL}/settings?tab=integrations&myob=connected`);
   });
 
   // DELETE /api/v1/integrations/myob
@@ -439,8 +439,8 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
 
       const accountLink = await stripe.accountLinks.create({
         account: accountId,
-        refresh_url: `${config.APP_URL}/settings/integrations?stripe=refresh`,
-        return_url: `${config.APP_URL}/settings/integrations?stripe=connected`,
+        refresh_url: `${config.APP_URL}/settings?tab=integrations&stripe=refresh`,
+        return_url: `${config.APP_URL}/settings?tab=integrations&stripe=connected`,
         type: "account_onboarding",
       });
 
