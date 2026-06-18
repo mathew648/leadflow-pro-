@@ -3,10 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
-  MapPin, Phone, Clock, ChevronRight, CheckCircle2, Loader2, CalendarDays,
+  MapPin, Phone, Clock, ChevronRight, CheckCircle2, Loader2, CalendarDays, Menu,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/store";
+import { useAuthStore, useUIStore } from "@/lib/store";
 import { cn, statusColor, priorityColor } from "@/lib/utils";
 
 interface FieldJob {
@@ -79,6 +79,7 @@ function JobCard({ job }: { job: FieldJob }) {
 
 export default function FieldHomePage() {
   const user = useAuthStore((s) => s.user);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
 
   const { data, isLoading } = useQuery({
     queryKey: ["field", "my-jobs", user?.id],
@@ -96,9 +97,19 @@ export default function FieldHomePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 pb-24">
       <header className="mb-6">
-        <p className="text-sm text-gray-500">
-          {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
+        <div className="flex items-center gap-2 mb-1">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden -ml-1 p-2 rounded-lg hover:bg-gray-100"
+            aria-label="Open menu"
+          >
+            <Menu className="w-5 h-5 text-gray-700" />
+          </button>
+          <p className="text-sm text-gray-500">
+            {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
         <h1 className="text-2xl font-bold text-gray-900">
           Hi {user?.firstName ?? "there"} 👋
         </h1>

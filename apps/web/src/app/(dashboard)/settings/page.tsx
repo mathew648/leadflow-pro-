@@ -1031,7 +1031,7 @@ export default function SettingsPage() {
     <div>
       <Topbar title="Settings" />
 
-      <div className="flex gap-6 p-4 lg:p-6">
+      <div className="flex flex-col md:flex-row gap-6 p-4 lg:p-6">
         {/* Sidebar nav */}
         <div className="w-48 flex-shrink-0 hidden md:block">
           <nav className="space-y-1">
