@@ -505,11 +505,21 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
   // (leads-<key>@in.tradiejet.com). The mail service posts the email here; we resolve the
   // tenant by <key>, AI-parse the customer details, and create a lead tagged with the portal.
   fastify.post("/webhooks/email", async (request, reply) => {
-    const b = (request.body as any) ?? {};
+    // Accept JSON (Cloudflare/Postmark) OR multipart/form-data (SendGrid Inbound Parse / Mailgun).
+    let b: any = {};
+    if (typeof (request as any).isMultipart === "function" && (request as any).isMultipart()) {
+      try {
+        for await (const part of (request as any).parts()) {
+          if (part.type === "field") b[part.fieldname] = part.value;
+        }
+      } catch { /* fall through with whatever we collected */ }
+    } else {
+      b = (request.body as any) ?? {};
+    }
 
-    // Optional shared secret (set INBOUND_EMAIL_SECRET + send it from the mail service).
+    // Optional shared secret — sent as a header, a body field, or a ?secret= query param.
     if (config.INBOUND_EMAIL_SECRET) {
-      const provided = request.headers["x-inbound-secret"] ?? b.secret;
+      const provided = request.headers["x-inbound-secret"] ?? b.secret ?? (request.query as any)?.secret;
       if (provided !== config.INBOUND_EMAIL_SECRET) {
         return reply.status(401).send({ error: { code: "UNAUTHORIZED", message: "Bad secret" } });
       }

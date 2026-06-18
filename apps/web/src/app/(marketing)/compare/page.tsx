@@ -42,7 +42,7 @@ export default function ComparePage() {
           <div className="rounded-2xl border-2 border-brand-600 p-6">
             <h3 className="font-semibold text-lg">TradieJet</h3>
             <ul className="mt-4 space-y-2 text-sm text-gray-700">
-              {["Capture your OWN leads from your site, Google & Meta", "Exclusive — never shared", "Instant auto-reply so you win the job", "No per-lead fees, ever"].map((t) => (
+              {["Capture your OWN leads from your site, Google & Meta", "Exclusive — never shared", "Import your Builderscrack/hipages leads into one inbox too", "Instant auto-reply so you win the job", "No per-lead fees, ever"].map((t) => (
                 <li key={t} className="flex gap-2"><Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />{t}</li>
               ))}
             </ul>
