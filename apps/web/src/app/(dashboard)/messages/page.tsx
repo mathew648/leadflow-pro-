@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Send, Phone } from "lucide-react";
+import { MessageSquare, Send, Phone, ChevronLeft } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,12 +47,12 @@ export default function MessagesPage() {
   const selected = threadList.find((t) => t.customer_id === selectedCustomerId);
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col h-full">
       <Topbar title="Messages" />
 
-      <div className="flex flex-1 overflow-hidden mt-16 border-t">
-        {/* Thread list */}
-        <div className="w-72 border-r flex-shrink-0 overflow-y-auto">
+      <div className="flex flex-1 overflow-hidden border-t">
+        {/* Thread list — full width on mobile; hidden on mobile once a chat is open */}
+        <div className={cn("w-full lg:w-72 border-r flex-shrink-0 overflow-y-auto", selectedCustomerId && "hidden lg:block")}>
           {threadList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-6">
               <MessageSquare className="w-12 h-12 opacity-20" />
@@ -90,8 +90,8 @@ export default function MessagesPage() {
           )}
         </div>
 
-        {/* Conversation */}
-        <div className="flex-1 flex flex-col">
+        {/* Conversation — hidden on mobile until a chat is selected */}
+        <div className={cn("flex-1 flex-col", selectedCustomerId ? "flex" : "hidden lg:flex")}>
           {!selectedCustomerId ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
@@ -103,6 +103,14 @@ export default function MessagesPage() {
             <>
               {/* Header */}
               <div className="px-4 py-3 border-b flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerId(null)}
+                  className="lg:hidden -ml-1 p-1.5 rounded-lg hover:bg-muted"
+                  aria-label="Back to conversations"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
                 {selected && (
                   <>
                     <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 font-bold text-sm flex items-center justify-center">

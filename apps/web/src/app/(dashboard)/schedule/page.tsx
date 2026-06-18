@@ -168,8 +168,8 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {/* Right panel — technicians & unscheduled */}
-        <div className="w-72 border-l bg-gray-50 flex flex-col overflow-hidden">
+        {/* Right panel — technicians & unscheduled (hidden on mobile to give the calendar full width) */}
+        <div className="w-72 border-l bg-gray-50 flex-col overflow-hidden hidden lg:flex">
           {/* Technicians */}
           <div className="p-4 border-b">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Technicians</p>
