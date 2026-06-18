@@ -55,7 +55,7 @@ export default function TermsPage() {
         business). Disputes are subject to the courts of that jurisdiction.
       </Section>
       <Section title="11. Contact">
-        Questions: <strong>support@tradiejet.com</strong>.
+        Questions: <strong>info@tradiejet.com</strong>.
       </Section>
 
       <p className="mt-8 text-xs text-gray-400">
