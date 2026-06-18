@@ -28,7 +28,7 @@ interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set) => ({
-  sidebarOpen: true,
+  sidebarOpen: false, // closed by default (mobile drawer); desktop shows it via lg:static
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   commandOpen: false,
   setCommandOpen: (open) => set({ commandOpen: open }),

@@ -93,12 +93,20 @@ export default function RegisterPage() {
     }
   }
 
+  const [working, setWorking] = useState(false);
+
   // Tradies pick trades on step 2; non-tradies submit straight from step 1.
   async function handlePrimary() {
-    const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
-    if (!ok) return;
-    if (accountType === "tradie") setStep(2);
-    else handleSubmit(onSubmit)();
+    if (working || isSubmitting) return; // guard against rapid double-taps
+    setWorking(true);
+    try {
+      const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
+      if (!ok) return;
+      if (accountType === "tradie") setStep(2);
+      else await handleSubmit(onSubmit)();
+    } finally {
+      setWorking(false);
+    }
   }
 
   return (
@@ -212,8 +220,8 @@ export default function RegisterPage() {
                     <Input type="tel" placeholder="+61 4xx xxx xxx" {...register("phone")} />
                   </div>
                 </div>
-                <Button type="button" className="w-full" onClick={handlePrimary} disabled={isSubmitting}>
-                  {accountType === "tradie" ? "Next: Select Trade →" : (isSubmitting ? "Creating account…" : "Start free trial")}
+                <Button type="button" className="w-full" onClick={handlePrimary} disabled={isSubmitting || working}>
+                  {accountType === "tradie" ? "Next: Select Trade →" : (isSubmitting || working ? "Creating account…" : "Start free trial")}
                 </Button>
               </div>
             )}

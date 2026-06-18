@@ -4,6 +4,7 @@ import {
   ArrowRight, MapPin, Smartphone, ShieldCheck, Star,
 } from "lucide-react";
 import { HeroMockup } from "@/components/hero-mockup";
+import { InstallAppButton } from "@/components/install-app";
 
 // Illustrative testimonials — REPLACE with real customer quotes before a public launch.
 const TESTIMONIALS = [
@@ -65,9 +66,7 @@ export default function MarketingHome() {
               <Link href="/register" className="rounded-lg bg-white px-6 py-3 font-semibold text-brand-700 hover:bg-brand-50 shadow-lg shadow-brand-900/20">
                 Start your 14-day free trial
               </Link>
-              <Link href="/compare" className="rounded-lg border border-white/30 px-6 py-3 font-semibold text-white hover:bg-white/10">
-                Why TradieJet?
-              </Link>
+              <InstallAppButton />
             </div>
             <p className="mt-4 text-sm text-brand-200">No credit card required · Set up in minutes</p>
             <div className="mt-6 flex items-center justify-center lg:justify-start gap-2 text-sm text-brand-100">
