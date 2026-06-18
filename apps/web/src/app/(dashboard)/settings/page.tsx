@@ -723,9 +723,11 @@ function LeadSourcesTab() {
   const { data: webForm } = useQuery({ queryKey: ["web-form"], queryFn: () => api.get<any>("/leads/web-form") });
   const { data: googleHook } = useQuery({ queryKey: ["google-webhook"], queryFn: () => api.get<any>("/leads/google-ads-webhook") });
   const { data: metaStatus } = useQuery({ queryKey: ["meta-status"], queryFn: () => api.get<any>("/integrations/meta/status") });
+  const { data: inboundEmail } = useQuery({ queryKey: ["inbound-email"], queryFn: () => api.get<any>("/leads/inbound-email") });
 
   const wf = (webForm?.data ?? webForm) ?? {};
   const gh = (googleHook?.data ?? googleHook) ?? {};
+  const ie = (inboundEmail?.data ?? inboundEmail) ?? {};
   const ms = (metaStatus?.data ?? metaStatus) ?? {};
   const [selectedPage, setSelectedPage] = useState<string>("");
 
@@ -805,6 +807,28 @@ function LeadSourcesTab() {
             {wf.lastEventAt && <span className="text-xs text-muted-foreground">Last lead received: {new Date(wf.lastEventAt).toLocaleString("en-AU")}</span>}
           </div>
           <p className="text-xs text-muted-foreground">Add it to your contact page or footer. Works on any website (Wix, Squarespace, WordPress, custom).</p>
+        </CardContent>
+      </Card>
+
+      {/* Email-to-Lead — import from Builderscrack/hipages/etc. */}
+      <Card className="border-brand-200">
+        <CardHeader>
+          <CardTitle className="text-base">📥 Import leads from any portal (Builderscrack, hipages…)</CardTitle>
+          <CardDescription>Forward your lead-platform notification emails here and they become leads automatically — with auto-reply &amp; follow-ups, all in one inbox.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Your lead-import email address</Label>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{ie.address ?? "…"}</code>
+              <CopyBtn text={ie.address ?? ""} label="Lead-import address" />
+            </div>
+            {ie.lastEventAt && <span className="text-xs text-muted-foreground">Last lead received: {new Date(ie.lastEventAt).toLocaleString("en-AU")}</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            In each portal (Builderscrack, hipages, NoCowboys, Oneflare, ServiceSeeking, Airtasker…), set your lead/job
+            notifications to this address — or add an auto-forward rule in Gmail/Outlook. Works with any platform that emails you.
+          </p>
         </CardContent>
       </Card>
 

@@ -499,4 +499,87 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
 
     return reply.status(200).send({ received: true });
   });
+
+  // POST /api/v1/webhooks/email — inbound "Email-to-Lead". A tradie forwards their
+  // Builderscrack / hipages / NoCowboys / etc. notification emails to a unique address
+  // (leads-<key>@in.tradiejet.com). The mail service posts the email here; we resolve the
+  // tenant by <key>, AI-parse the customer details, and create a lead tagged with the portal.
+  fastify.post("/webhooks/email", async (request, reply) => {
+    const b = (request.body as any) ?? {};
+
+    // Optional shared secret (set INBOUND_EMAIL_SECRET + send it from the mail service).
+    if (config.INBOUND_EMAIL_SECRET) {
+      const provided = request.headers["x-inbound-secret"] ?? b.secret;
+      if (provided !== config.INBOUND_EMAIL_SECRET) {
+        return reply.status(401).send({ error: { code: "UNAUTHORIZED", message: "Bad secret" } });
+      }
+    }
+
+    // Accept the common field names across providers (SendGrid / Mailgun / Postmark / Cloudflare).
+    const to = String(b.to ?? b.To ?? b.recipient ?? "").toLowerCase();
+    const from = String(b.from ?? b.From ?? b.sender ?? "");
+    const subject = String(b.subject ?? b.Subject ?? "");
+    const text = String(b.text ?? b.TextBody ?? b["body-plain"] ?? b["stripped-text"] ?? b.html ?? b.HtmlBody ?? "");
+
+    const m = to.match(/leads-([a-z0-9]+)@/i);
+    if (!m) return reply.status(200).send({ received: false, reason: "no_key" });
+    const emailKey = m[1];
+
+    const sourceConfig = await prisma.leadSourceConfig.findFirst({
+      where: { source: "email", config: { path: ["emailKey"], equals: emailKey } },
+    });
+    if (!sourceConfig) return reply.status(200).send({ received: false, reason: "unknown_key" });
+    const tenantId = sourceConfig.tenantId;
+
+    const { parseLeadEmail, detectPortal } = await import("../lib/lead-email-parser.js");
+    const portal = detectPortal(from, subject);
+    const parsed = await parseLeadEmail({ from, subject, text });
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { country: true } });
+    const phone = parsed.phone ? normalisePhone(parsed.phone, tenant?.country ?? "AU") : null;
+    const email = parsed.email && !/noreply|no-reply/i.test(parsed.email) ? parsed.email.toLowerCase() : null;
+
+    // Dedupe against active/converted leads.
+    if (email || phone) {
+      const dup = await prisma.lead.findFirst({
+        where: {
+          tenantId, deletedAt: null, status: { in: ["active", "converted"] },
+          OR: [...(phone ? [{ phone }] : []), ...(email ? [{ email }] : [])],
+        },
+      });
+      if (dup) return reply.status(200).send({ received: true, deduped: true });
+    }
+
+    const defaultStage = await prisma.pipelineStage.findFirst({ where: { tenantId, isDefault: true } });
+    const lead = await prisma.lead.create({
+      data: {
+        tenantId,
+        source: "email",
+        sourceDetail: portal,
+        firstName: parsed.firstName || "New",
+        lastName: parsed.lastName || (portal !== "Email" ? portal : "lead"),
+        email,
+        phone,
+        serviceRequired: parsed.serviceRequired ?? undefined,
+        stageId: defaultStage?.id,
+        status: "active",
+        rawPayload: { from, subject, parsed } as any,
+      },
+    });
+
+    await prisma.leadActivity.create({
+      data: { tenantId, leadId: lead.id, type: "lead_created", description: `Lead imported from ${portal}` },
+    }).catch(() => {});
+    await prisma.leadSourceConfig.update({ where: { id: sourceConfig.id }, data: { lastEventAt: new Date() } }).catch(() => {});
+
+    await enqueueAutomation({ tenantId, triggerType: "lead_created", entityType: "lead", entityId: lead.id, entityData: { source: "email", portal } });
+    await enqueueAIScoring({ tenantId, leadId: lead.id });
+    notifyBusiness(tenantId, "new_lead", {
+      summary: `New lead: <b>${lead.firstName} ${lead.lastName ?? ""}</b>${lead.serviceRequired ? ` — ${lead.serviceRequired}` : ""} (via ${portal})`,
+      link: `/leads/${lead.id}`,
+      sms: `New lead via ${portal}: ${lead.firstName} ${lead.phone ?? lead.email ?? ""}. Open TradieJet.`,
+    }).catch(() => {});
+
+    return reply.status(201).send({ data: { received: true, portal } });
+  });
 }
