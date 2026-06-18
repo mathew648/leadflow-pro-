@@ -54,6 +54,7 @@ Step-by-step to take the platform live. Keep this file for every future deploy.
    - `ABR_GUID` — Australian ABN auto-lookup at signup (free, abr.business.gov.au)
    - `NZBN_API_KEY` — New Zealand NZBN auto-lookup at signup
    - `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` — push notifications. Generate fresh keys with `npx web-push generate-vapid-keys` (use your OWN, set `VAPID_SUBJECT` = `mailto:you@yourdomain`)
+   - `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_WHATSAPP_FROM` — lets the admin panel message tradies on WhatsApp (from twilio.com; `TWILIO_WHATSAPP_FROM` = your Twilio WhatsApp sender number)
    - `XERO_CLIENT_ID` + `XERO_CLIENT_SECRET` + `XERO_REDIRECT_URI` — Xero sync + import
    - `MYOB_CLIENT_ID` + `MYOB_CLIENT_SECRET` + `MYOB_REDIRECT_URI` + `MYOB_API_KEY` — MYOB sync + import
    - `META_APP_ID` + `META_APP_SECRET` + `META_VERIFY_TOKEN` + `META_REDIRECT_URI` — Meta lead ads (see META-SETUP.md)

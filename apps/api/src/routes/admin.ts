@@ -20,10 +20,17 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/admin/stats — platform-wide totals + MRR.
   fastify.get("/admin/stats", guard, async () => {
-    const [tenantCount, subsByStatus, activeSubs] = await Promise.all([
+    const weekAgo = new Date(Date.now() - 7 * 864e5);
+    const monthAgo = new Date(Date.now() - 30 * 864e5);
+    const [tenantCount, subsByStatus, activeSubs, newWeek, newMonth, leadsWeek, leadsMonth, totalLeads] = await Promise.all([
       prisma.tenant.count({ where: { deletedAt: null } }),
       prisma.subscription.groupBy({ by: ["status"], _count: { id: true } }),
       prisma.subscription.findMany({ where: { status: "active" }, select: { basePriceCents: true } }),
+      prisma.tenant.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
+      prisma.tenant.count({ where: { deletedAt: null, createdAt: { gte: monthAgo } } }),
+      prisma.lead.count({ where: { createdAt: { gte: weekAgo } } }),
+      prisma.lead.count({ where: { createdAt: { gte: monthAgo } } }),
+      prisma.lead.count({}),
     ]);
     const byStatus: Record<string, number> = {};
     for (const s of subsByStatus) byStatus[s.status] = s._count.id;
@@ -59,6 +66,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         pastDue: byStatus.past_due ?? 0,
         cancelled: byStatus.cancelled ?? 0,
         mrrCents,
+        arrCents: mrrCents * 12,
+        newThisWeek: newWeek,
+        newThisMonth: newMonth,
+        leadsThisWeek: leadsWeek,
+        leadsThisMonth: leadsMonth,
+        totalLeads,
         signups: months.map((m) => ({ month: m.label, signups: m.count })),
       },
     };
@@ -128,5 +141,121 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       queued += 1;
     }
     return { data: { queued, audience: body.audience } };
+  });
+
+  // GET /api/v1/admin/tenants/:id — full drill-down on one tradie account.
+  fastify.get("/admin/tenants/:id", guard, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const weekAgo = new Date(Date.now() - 7 * 864e5);
+    const monthAgo = new Date(Date.now() - 30 * 864e5);
+
+    const tenant = await prisma.tenant.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true, businessName: true, email: true, phone: true, country: true, currency: true,
+        suburb: true, state: true, tradeTypes: true, accountType: true, status: true,
+        createdAt: true, subscriptionStatus: true, trialEndsAt: true, logoUrl: true,
+        subscription: { select: { tier: true, status: true, basePriceCents: true, maxUsers: true, currentPeriodEnd: true, stripeCustomerId: true } },
+        users: { where: { deletedAt: null }, select: { id: true, firstName: true, lastName: true, email: true, role: true, status: true, lastLoginAt: true }, orderBy: { createdAt: "asc" } },
+        _count: { select: { leads: true, customers: true, jobs: true, quotes: true, invoices: true } },
+      },
+    });
+    if (!tenant) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Tenant not found" } });
+
+    const [leadsWeek, leadsMonth, wonAll, revenueAgg, sourceGroups] = await Promise.all([
+      prisma.lead.count({ where: { tenantId: id, createdAt: { gte: weekAgo } } }),
+      prisma.lead.count({ where: { tenantId: id, createdAt: { gte: monthAgo } } }),
+      prisma.lead.count({ where: { tenantId: id, status: "converted" } }),
+      prisma.invoice.aggregate({ where: { tenantId: id, status: "paid" }, _sum: { totalCents: true } }),
+      prisma.lead.groupBy({ by: ["source"], where: { tenantId: id }, _count: { id: true } }),
+    ]);
+
+    const lastActiveAt = tenant.users.reduce<Date | null>((latest, u) => {
+      if (u.lastLoginAt && (!latest || u.lastLoginAt > latest)) return u.lastLoginAt;
+      return latest;
+    }, null);
+
+    return {
+      data: {
+        ...tenant,
+        lastActiveAt,
+        metrics: {
+          leadsWeek, leadsMonth, leadsTotal: tenant._count.leads, wonAll,
+          revenuePaidCents: revenueAgg._sum.totalCents ?? 0,
+          leadSources: sourceGroups.map((g) => ({ source: g.source, count: g._count.id })),
+        },
+      },
+    };
+  });
+
+  // GET /api/v1/admin/tenants/:id/leads?period=week|month|all — that tradie's leads.
+  fastify.get("/admin/tenants/:id/leads", guard, async (request) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const { period } = z.object({ period: z.enum(["week", "month", "all"]).default("month") }).parse(request.query);
+    const since = period === "week" ? new Date(Date.now() - 7 * 864e5) : period === "month" ? new Date(Date.now() - 30 * 864e5) : undefined;
+
+    const leads = await prisma.lead.findMany({
+      where: { tenantId: id, ...(since && { createdAt: { gte: since } }) },
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true, source: true, status: true, serviceRequired: true, estimatedValueCents: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
+    return { data: { period, count: leads.length, leads } };
+  });
+
+  // POST /api/v1/admin/message — message a single tradie via email or WhatsApp.
+  fastify.post("/admin/message", guard, async (request, reply) => {
+    const body = z.object({
+      tenantId: z.string(),
+      channel: z.enum(["email", "whatsapp"]),
+      subject: z.string().max(200).optional(),
+      message: z.string().min(1),
+    }).parse(request.body);
+
+    const tenant = await prisma.tenant.findFirst({ where: { id: body.tenantId, deletedAt: null }, select: { id: true, email: true, phone: true } });
+    if (!tenant) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Tenant not found" } });
+
+    if (body.channel === "email") {
+      if (!tenant.email) return reply.status(400).send({ error: { code: "NO_EMAIL", message: "No email on file" } });
+      await enqueueEmail({ tenantId: tenant.id, to: tenant.email, subject: body.subject ?? "A message from TradieJet", template: "custom", data: { body: body.message, businessName: "TradieJet" } });
+      return { data: { sent: true, channel: "email", to: tenant.email } };
+    }
+
+    const { sendWhatsApp } = await import("../lib/whatsapp.js");
+    const res = await sendWhatsApp(tenant.phone ?? "", body.message);
+    if (!res.sent) return reply.status(res.reason?.includes("not configured") ? 503 : 502).send({ error: { code: "WHATSAPP_FAILED", message: res.reason } });
+    return { data: { sent: true, channel: "whatsapp", to: tenant.phone } };
+  });
+
+  // POST /api/v1/admin/tenants/:id/suspend — suspend or reactivate an account.
+  fastify.post("/admin/tenants/:id/suspend", guard, async (request) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const { suspend } = z.object({ suspend: z.boolean() }).parse(request.body);
+    await prisma.tenant.update({ where: { id }, data: { status: suspend ? "suspended" : "active" } });
+    return { data: { id, status: suspend ? "suspended" : "active" } };
+  });
+
+  // GET /api/v1/admin/export/tenants.csv — download all tradie accounts.
+  fastify.get("/admin/export/tenants.csv", guard, async (_request, reply) => {
+    const tenants = await prisma.tenant.findMany({
+      where: { deletedAt: null },
+      select: {
+        businessName: true, email: true, phone: true, country: true, accountType: true, status: true,
+        subscriptionStatus: true, createdAt: true,
+        subscription: { select: { tier: true, basePriceCents: true } },
+        _count: { select: { users: true, leads: true, invoices: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Business", "Email", "Phone", "Country", "Type", "Status", "Plan", "Price", "Users", "Leads", "Invoices", "Signed up"];
+    const rows = tenants.map((t) => [
+      t.businessName, t.email, t.phone, t.country, t.accountType, t.subscriptionStatus,
+      t.subscription?.tier ?? "", ((t.subscription?.basePriceCents ?? 0) / 100).toFixed(2),
+      t._count.users, t._count.leads, t._count.invoices, t.createdAt.toISOString().slice(0, 10),
+    ].map(esc).join(","));
+    const csv = [header.map(esc).join(","), ...rows].join("\n");
+    reply.header("Content-Type", "text/csv").header("Content-Disposition", `attachment; filename="tradiejet-tenants-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return csv;
   });
 }

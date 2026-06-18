@@ -70,7 +70,7 @@ export default function PrivacyPage() {
       </Section>
 
       <Section title="10. Contact">
-        Questions or privacy requests: <strong>privacy@tradiejet.com</strong>.
+        Questions or privacy requests: <strong>info@tradiejet.com</strong>.
       </Section>
 
       <p className="mt-8 text-xs text-gray-400">

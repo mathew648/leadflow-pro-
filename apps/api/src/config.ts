@@ -22,11 +22,16 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().min(64).optional(),
 
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("TradieJet <noreply@tradiejet.com>"),
+  EMAIL_FROM: z.string().default("TradieJet <info@tradiejet.com>"),
 
   VONAGE_API_KEY: z.string().optional(),
   VONAGE_API_SECRET: z.string().optional(),
   VONAGE_FROM_NUMBER: z.string().default("TradieJet"),
+
+  // Twilio WhatsApp (admin → tradie messaging).
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
 
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
@@ -68,7 +73,7 @@ const envSchema = z.object({
   // Web Push (VAPID) — browser/PWA push notifications.
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT: z.string().default("mailto:support@tradiejet.com"),
+  VAPID_SUBJECT: z.string().default("mailto:info@tradiejet.com"),
 
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("development"),
