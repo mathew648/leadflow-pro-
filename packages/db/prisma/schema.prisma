@@ -286,6 +286,14 @@ model TenantSettings {
   xeroTenantId          String? @db.VarChar(100) @map("xero_tenant_id")
   stripeAccountId       String? @db.VarChar(100) @map("stripe_account_id")
 
+  // Online booking widget (public /book/<slug> page).
+  bookingEnabled       Boolean @default(false) @map("booking_enabled")
+  bookingServices      Json    @default("[]") @map("booking_services")        // [{ name, durationMin?, priceCents? }]
+  bookingSlotMinutes   Int     @default(60) @map("booking_slot_minutes")
+  bookingLeadTimeHours Int     @default(24) @map("booking_lead_time_hours")   // earliest bookable from now
+  bookingAdvanceDays   Int     @default(30) @map("booking_advance_days")      // furthest bookable ahead
+  bookingInstructions  String? @map("booking_instructions")
+
   updatedAt DateTime @updatedAt @map("updated_at")
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
 

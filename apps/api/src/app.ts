@@ -18,6 +18,7 @@ import jobsRoutes from "./routes/jobs.js";
 import quotesRoutes from "./routes/quotes.js";
 import invoicesRoutes from "./routes/invoices.js";
 import serviceAgreementRoutes from "./routes/service-agreements.js";
+import bookingRoutes from "./routes/booking.js";
 import catalogRoutes from "./routes/catalog.js";
 import scheduleRoutes from "./routes/schedule.js";
 import analyticsRoutes from "./routes/analytics.js";
@@ -185,6 +186,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await fastify.register(quotesRoutes, v1Prefix);
   await fastify.register(invoicesRoutes, v1Prefix);
   await fastify.register(serviceAgreementRoutes, v1Prefix);
+  await fastify.register(bookingRoutes, v1Prefix);
   await fastify.register(catalogRoutes, v1Prefix);
   await fastify.register(scheduleRoutes, v1Prefix);
   await fastify.register(analyticsRoutes, v1Prefix);

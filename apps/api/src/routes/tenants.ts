@@ -24,6 +24,17 @@ const updateSettingsSchema = z.object({
   googlePlaceId: z.string().optional(),
   googleReviewUrl: z.string().url().or(z.literal("")).optional(),
   leadAssignmentStrategy: z.enum(["manual", "round_robin", "ai"]).optional(),
+  // Online booking widget
+  bookingEnabled: z.boolean().optional(),
+  bookingServices: z.array(z.object({
+    name: z.string().min(1).max(120),
+    durationMin: z.number().int().min(0).optional(),
+    priceCents: z.number().int().min(0).optional(),
+  })).optional(),
+  bookingSlotMinutes: z.number().int().min(15).max(480).optional(),
+  bookingLeadTimeHours: z.number().int().min(0).max(720).optional(),
+  bookingAdvanceDays: z.number().int().min(1).max(365).optional(),
+  bookingInstructions: z.string().max(2000).optional(),
 });
 
 const updateTenantSchema = z.object({
