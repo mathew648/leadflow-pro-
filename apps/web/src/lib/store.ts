@@ -13,7 +13,10 @@ interface AuthStore {
 export const useAuthStore = create<AuthStore>()((set) => ({
   user: null,
   isHydrated: false,
-  setAuth: (user) => set({ user }),
+  // Setting a user (login or after getMe) means we're authenticated AND hydrated —
+  // mark hydrated so the dashboard layout renders immediately instead of re-running
+  // the refresh flow (which was bouncing fresh logins back to /login).
+  setAuth: (user) => set({ user, isHydrated: true }),
   clearAuth: () => set({ user: null }),
   updateUser: (partial) =>
     set((state) => ({ user: state.user ? { ...state.user, ...partial } : null })),
