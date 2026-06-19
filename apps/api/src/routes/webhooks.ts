@@ -32,14 +32,17 @@ function verifyStripe(payload: string, sig: string, secret: string): Stripe.Even
 }
 
 export default async function webhooksRoutes(fastify: FastifyInstance) {
+  // GET /api/v1/webhooks/meta — Meta sends the webhook verification challenge as a GET.
+  fastify.get("/webhooks/meta", async (request, reply) => {
+    const q = request.query as any;
+    if (q["hub.mode"] === "subscribe" && q["hub.verify_token"] === config.META_VERIFY_TOKEN) {
+      return reply.status(200).send(q["hub.challenge"]);
+    }
+    return reply.status(403).send("Forbidden");
+  });
+
   // POST /api/v1/webhooks/meta — Meta Ads / Facebook Lead Ads
   fastify.post("/webhooks/meta", async (request, reply) => {
-    // Verification challenge
-    const query = request.query as any;
-    if (query["hub.mode"] === "subscribe" && query["hub.verify_token"] === config.META_VERIFY_TOKEN) {
-      return reply.status(200).send(query["hub.challenge"]);
-    }
-
     const body = request.body as any;
 
     // Find tenant by page ID
@@ -70,7 +73,7 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
           const storedToken = (leadSourceConfig.config as any)?.accessToken;
           const metaToken = storedToken ? decrypt(storedToken) : "";
           const metaRes = await fetch(
-            `https://graph.facebook.com/v18.0/${leadgenId}?access_token=${metaToken}`
+            `https://graph.facebook.com/${config.META_GRAPH_VERSION}/${leadgenId}?access_token=${metaToken}`
           );
           const leadData = await metaRes.json() as any;
 
