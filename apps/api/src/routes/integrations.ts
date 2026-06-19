@@ -42,7 +42,9 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         state,
       });
 
-      const authUrl = `https://login.xero.com/identity/connect/authorize?${params}`;
+      // Encode spaces in scope as %20 (not URLSearchParams' default '+') — Xero reads
+      // '+' literally and rejects it as invalid_scope.
+      const authUrl = `https://login.xero.com/identity/connect/authorize?${params.toString().replace(/\+/g, "%20")}`;
       return { data: { authUrl } };
     }
   );
@@ -52,9 +54,17 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
     "/integrations/xero/callback",
     async (request, reply) => {
       const query = z.object({
-        code: z.string(),
-        state: z.string(),
+        code: z.string().optional(),
+        state: z.string().optional(),
+        error: z.string().optional(),
+        error_description: z.string().optional(),
       }).parse(request.query);
+
+      // Xero redirected back with an error (e.g. invalid_scope, access denied) — show a clean message, not a 500.
+      if (query.error || !query.code || !query.state) {
+        const reason = query.error_description || query.error || "no_code";
+        return reply.redirect(`${config.APP_URL}/settings?tab=integrations&xero=error&reason=${encodeURIComponent(reason)}`);
+      }
 
       let stateData: { tenantId: string; userId: string; ts: number };
       try {
@@ -167,13 +177,21 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         scope: config.MYOB_SCOPE, // new granular scopes + offline_access (post-March-2025)
         state,
       });
-      return { data: { authUrl: `${MYOB_AUTH_URL}?${params}` } };
+      // %20 (not '+') for the spaces between scopes, same reason as Xero.
+      return { data: { authUrl: `${MYOB_AUTH_URL}?${params.toString().replace(/\+/g, "%20")}` } };
     }
   );
 
   // GET /api/v1/integrations/myob/callback
   fastify.get("/integrations/myob/callback", async (request, reply) => {
-    const query = z.object({ code: z.string(), state: z.string() }).parse(request.query);
+    const query = z.object({
+      code: z.string().optional(), state: z.string().optional(),
+      error: z.string().optional(), error_description: z.string().optional(),
+    }).parse(request.query);
+    if (query.error || !query.code || !query.state) {
+      const reason = query.error_description || query.error || "no_code";
+      return reply.redirect(`${config.APP_URL}/settings?tab=integrations&myob=error&reason=${encodeURIComponent(reason)}`);
+    }
     let stateData: { tenantId: string };
     try {
       stateData = JSON.parse(Buffer.from(query.state, "base64url").toString());
