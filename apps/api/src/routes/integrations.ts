@@ -38,7 +38,9 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         response_type: "code",
         client_id: config.XERO_CLIENT_ID ?? "",
         redirect_uri: config.XERO_REDIRECT_URI ?? "",
-        scope: "openid profile email accounting.transactions accounting.contacts offline_access",
+        // Xero granular scopes (the broad accounting.transactions was retired for apps
+        // created after Mar 2026): invoices + payments + contacts + settings (items).
+        scope: "openid profile email accounting.contacts accounting.invoices accounting.payments accounting.settings offline_access",
         state,
       });
 
