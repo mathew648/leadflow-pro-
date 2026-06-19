@@ -1,8 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { customAlphabet } from "nanoid";
 import { prisma } from "../lib/prisma.js";
 import { config } from "../config.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
+
+const genReferralCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 7);
 
 const updateSettingsSchema = z.object({
   invoicePrefix: z.string().max(20).optional(),
@@ -24,6 +27,17 @@ const updateSettingsSchema = z.object({
   googlePlaceId: z.string().optional(),
   googleReviewUrl: z.string().url().or(z.literal("")).optional(),
   leadAssignmentStrategy: z.enum(["manual", "round_robin", "ai"]).optional(),
+  // Online booking widget
+  bookingEnabled: z.boolean().optional(),
+  bookingServices: z.array(z.object({
+    name: z.string().min(1).max(120),
+    durationMin: z.number().int().min(0).optional(),
+    priceCents: z.number().int().min(0).optional(),
+  })).optional(),
+  bookingSlotMinutes: z.number().int().min(15).max(480).optional(),
+  bookingLeadTimeHours: z.number().int().min(0).max(720).optional(),
+  bookingAdvanceDays: z.number().int().min(1).max(365).optional(),
+  bookingInstructions: z.string().max(2000).optional(),
 });
 
 const updateTenantSchema = z.object({
@@ -93,6 +107,48 @@ export default async function tenantsRoutes(fastify: FastifyInstance) {
         update: body,
       });
       return { data: settings };
+    }
+  );
+
+  // GET /api/v1/tenant/referral — this tenant's referral code, link, and who they've referred.
+  fastify.get(
+    "/tenant/referral",
+    { preHandler: [fastify.authenticate] },
+    async (request) => {
+      let tenant = await prisma.tenant.findUnique({ where: { id: request.tenantId }, select: { referralCode: true } });
+      let code = tenant?.referralCode ?? undefined;
+      if (!code) {
+        // Generate a unique code (retry on the rare collision).
+        for (let i = 0; i < 5 && !code; i++) {
+          const candidate = genReferralCode();
+          const exists = await prisma.tenant.findUnique({ where: { referralCode: candidate }, select: { id: true } });
+          if (!exists) {
+            await prisma.tenant.update({ where: { id: request.tenantId }, data: { referralCode: candidate } });
+            code = candidate;
+          }
+        }
+      }
+      const referred = await prisma.tenant.findMany({
+        where: { referredByTenantId: request.tenantId },
+        select: { id: true, businessName: true, createdAt: true, subscription: { select: { status: true, tier: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      const link = `${config.APP_URL}/register?ref=${code}`;
+      const converted = referred.filter((r) => ["active", "trialing"].includes(r.subscription?.status ?? "")).length;
+      return {
+        data: {
+          code,
+          link,
+          referrals: referred.map((r) => ({
+            businessName: r.businessName,
+            joinedAt: r.createdAt,
+            status: r.subscription?.status ?? "signed_up",
+          })),
+          total: referred.length,
+          converted,
+          reward: "You and your mate each get 1 month free when they subscribe.",
+        },
+      };
     }
   );
 

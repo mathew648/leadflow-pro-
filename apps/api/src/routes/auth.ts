@@ -29,6 +29,7 @@ const registerSchema = z.object({
   tradeTypes: z.array(z.string()).default([]),
   timezone: z.string().default("Australia/Sydney"),
   accountType: z.enum(["tradie", "non_tradie"]).default("tradie"),
+  referralCode: z.string().max(20).optional(),
 });
 
 const refreshSchema = z.object({
@@ -191,6 +192,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
+      // Referral attribution — if they signed up via a referral link.
+      let referredByTenantId: string | undefined;
+      if (body.referralCode) {
+        const referrer = await prisma.tenant.findUnique({ where: { referralCode: body.referralCode.toUpperCase() }, select: { id: true } });
+        referredByTenantId = referrer?.id;
+      }
+
       // Create tenant + user in transaction
       const { tenant, user } = await prisma.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({
@@ -204,6 +212,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             timezone: body.timezone,
             tradeTypes: body.tradeTypes,
             accountType: body.accountType,
+            referredByTenantId,
             gstRate: body.country === "NZ" ? 0.15 : 0.10,
             subscriptionStatus: "trialing",
             trialEndsAt,

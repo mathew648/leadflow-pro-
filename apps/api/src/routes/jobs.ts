@@ -292,7 +292,30 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Job not found" } });
       }
 
-      return { data: job };
+      // Auto-computed job costing — pulls materials, time entries, and the quote/invoice
+      // so a tradie sees profit without re-entering anything.
+      const materialsFromItems = job.materials.reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
+      const labourFromEntries = job.timeEntries.reduce((s: number, t: any) => {
+        if (t.totalCents != null) return s + t.totalCents;
+        if (t.durationMinutes && t.hourlyRateCents) return s + Math.round((t.durationMinutes / 60) * t.hourlyRateCents);
+        return s;
+      }, 0);
+      const materialsCostCents = materialsFromItems || job.actualMaterialsCents || 0;
+      const labourCostCents = labourFromEntries || job.actualLabourCents || 0;
+      let revenueCents = job.quotedAmountCents || job.quote?.totalCents || 0;
+      if (job.invoiceId) {
+        const inv = await prisma.invoice.findUnique({ where: { id: job.invoiceId }, select: { totalCents: true } });
+        if (inv) revenueCents = inv.totalCents;
+      }
+      const profitCents = revenueCents - materialsCostCents - labourCostCents;
+      const marginPct = revenueCents > 0 ? Math.round((profitCents / revenueCents) * 1000) / 10 : 0;
+      const costing = {
+        revenueCents, materialsCostCents, labourCostCents, profitCents, marginPct,
+        materialsAuto: materialsFromItems > 0, labourAuto: labourFromEntries > 0,
+        revenueSource: job.invoiceId ? "invoice" : job.quotedAmountCents ? "quoted" : "quote",
+      };
+
+      return { data: { ...job, costing } };
     }
   );
 
@@ -314,6 +337,8 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         estimatedHours: z.number().positive().optional(),
         assignedUserIds: z.array(z.string().uuid()).optional(),
         leadTechnicianId: z.string().uuid().optional(),
+        actualLabourCents: z.number().int().min(0).optional(),
+        actualMaterialsCents: z.number().int().min(0).optional(),
       }).parse(request.body);
 
       const job = await prisma.job.findFirst({
@@ -323,12 +348,18 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Job not found" } });
       }
 
+      // Keep actualTotalCents in sync when costs are edited.
+      const newLabour = body.actualLabourCents ?? job.actualLabourCents;
+      const newMaterials = body.actualMaterialsCents ?? job.actualMaterialsCents;
+      const costsTouched = body.actualLabourCents !== undefined || body.actualMaterialsCents !== undefined;
+
       const updated = await prisma.job.update({
         where: { id },
         data: {
           ...body,
           scheduledStart: body.scheduledStart ? new Date(body.scheduledStart) : undefined,
           scheduledEnd: body.scheduledEnd ? new Date(body.scheduledEnd) : undefined,
+          ...(costsTouched ? { actualTotalCents: newLabour + newMaterials } : {}),
         },
       });
 

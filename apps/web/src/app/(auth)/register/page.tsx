@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,8 +34,10 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get("ref") ?? undefined;
   const setAuth = useAuthStore((s) => s.setAuth);
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [accountType, setAccountType] = useState<"tradie" | "non_tradie">("tradie");
@@ -86,6 +88,7 @@ export default function RegisterPage() {
         ...values,
         tradeTypes: accountType === "tradie" ? selectedTrades : [],
         accountType,
+        referralCode: refCode,
       });
       setAuth(user);
       router.push("/dashboard");
@@ -272,5 +275,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-600 to-brand-900 text-white">Loading…</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

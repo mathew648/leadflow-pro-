@@ -298,6 +298,7 @@ export default function JobDetailPage() {
         {/* Overview tab */}
         {activeTab === "overview" && (
           <div className="space-y-4">
+            <ProfitCard job={job} jobId={id} />
             {job.description && (
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Description</CardTitle></CardHeader>
@@ -495,5 +496,74 @@ export default function JobDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/* ─── Auto-computed job profit (materials + labour pulled from the job) ─── */
+function ProfitCard({ job, jobId }: { job: any; jobId: string }) {
+  const qc = useQueryClient();
+  const c = job.costing ?? { revenueCents: 0, materialsCostCents: 0, labourCostCents: 0, profitCents: 0, marginPct: 0 };
+  const [editing, setEditing] = useState(false);
+  const [materials, setMaterials] = useState(String((c.materialsCostCents || 0) / 100));
+  const [labour, setLabour] = useState(String((c.labourCostCents || 0) / 100));
+
+  const revenue = c.revenueCents || 0;
+  const matC = editing ? Math.round((parseFloat(materials) || 0) * 100) : c.materialsCostCents;
+  const labC = editing ? Math.round((parseFloat(labour) || 0) * 100) : c.labourCostCents;
+  const profit = revenue - matC - labC;
+  const margin = revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0;
+
+  const save = useMutation({
+    mutationFn: () => api.patch<any>(`/jobs/${jobId}`, {
+      actualMaterialsCents: Math.round((parseFloat(materials) || 0) * 100),
+      actualLabourCents: Math.round((parseFloat(labour) || 0) * 100),
+    }),
+    onSuccess: () => { setEditing(false); qc.invalidateQueries({ queryKey: ["job", jobId] }); },
+  });
+
+  const profitColor = profit > 0 ? "text-green-600" : profit < 0 ? "text-red-600" : "text-gray-700";
+  const box = "w-full rounded-md border px-3 py-2 text-sm";
+
+  return (
+    <Card className="border-brand-200">
+      <CardHeader className="pb-2 flex-row items-center justify-between">
+        <CardTitle className="text-sm font-medium">💰 Job profit</CardTitle>
+        {!editing && (
+          <button onClick={() => { setMaterials(String((c.materialsCostCents || 0) / 100)); setLabour(String((c.labourCostCents || 0) / 100)); setEditing(true); }} className="text-xs text-primary hover:underline">Edit costs</button>
+        )}
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs text-muted-foreground">Revenue</p>
+            <p className="font-bold text-gray-900">{formatCurrency(revenue / 100)}</p>
+            <p className="text-[10px] text-muted-foreground">{c.revenueSource === "invoice" ? "invoiced" : "quoted"}</p>
+          </div>
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs text-muted-foreground">Materials</p>
+            {editing ? <input type="number" className={box + " text-center mt-1"} value={materials} onChange={(e) => setMaterials(e.target.value)} /> : <p className="font-bold text-gray-900">{formatCurrency(matC / 100)}</p>}
+            {!editing && <p className="text-[10px] text-muted-foreground">{c.materialsAuto ? "from materials" : "estimate"}</p>}
+          </div>
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs text-muted-foreground">Labour</p>
+            {editing ? <input type="number" className={box + " text-center mt-1"} value={labour} onChange={(e) => setLabour(e.target.value)} /> : <p className="font-bold text-gray-900">{formatCurrency(labC / 100)}</p>}
+            {!editing && <p className="text-[10px] text-muted-foreground">{c.labourAuto ? "from time entries" : "estimate"}</p>}
+          </div>
+          <div className={cn("rounded-lg p-3", profit >= 0 ? "bg-green-50" : "bg-red-50")}>
+            <p className="text-xs text-muted-foreground">Profit</p>
+            <p className={cn("font-bold", profitColor)}>{formatCurrency(profit / 100)}</p>
+            <p className={cn("text-[10px] font-medium", profitColor)}>{margin}% margin</p>
+          </div>
+        </div>
+        {editing ? (
+          <div className="mt-3 flex gap-2 justify-end">
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "Saving…" : "Save"}</Button>
+          </div>
+        ) : (
+          <p className="mt-2 text-[11px] text-muted-foreground text-center">Pulled automatically from this job&apos;s materials, time entries and {c.revenueSource === "invoice" ? "invoice" : "quote"}. Tap &quot;Edit costs&quot; to adjust.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

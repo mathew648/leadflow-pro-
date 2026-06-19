@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -714,6 +714,97 @@ function IntegrationsTab() {
   );
 }
 
+/* ─── Online booking config card ─── */
+function BookingCard() {
+  const qc = useQueryClient();
+  const { data: tenantResp } = useQuery({ queryKey: ["tenant"], queryFn: () => api.get<any>("/tenant") });
+  const tenant = (tenantResp?.data ?? tenantResp) ?? {};
+  const slug = tenant.slug;
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://www.tradiejet.com";
+  const bookingUrl = slug ? `${origin}/book/${slug}` : "";
+
+  const [enabled, setEnabled] = useState(false);
+  const [services, setServices] = useState("");
+  const [slotMinutes, setSlotMinutes] = useState(60);
+  const [leadTimeHours, setLeadTimeHours] = useState(24);
+  const [advanceDays, setAdvanceDays] = useState(30);
+  const [instructions, setInstructions] = useState("");
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    const s = tenant.settings;
+    if (seeded || !s) return;
+    setEnabled(!!s.bookingEnabled);
+    setServices(((s.bookingServices as any[]) ?? []).map((x) => x.name).join("\n"));
+    setSlotMinutes(s.bookingSlotMinutes ?? 60);
+    setLeadTimeHours(s.bookingLeadTimeHours ?? 24);
+    setAdvanceDays(s.bookingAdvanceDays ?? 30);
+    setInstructions(s.bookingInstructions ?? "");
+    setSeeded(true);
+  }, [tenant.settings, seeded]);
+
+  const save = useMutation({
+    mutationFn: () => api.patch<any>("/tenant/settings", {
+      bookingEnabled: enabled,
+      bookingServices: services.split("\n").map((l) => l.trim()).filter(Boolean).map((name) => ({ name })),
+      bookingSlotMinutes: Number(slotMinutes),
+      bookingLeadTimeHours: Number(leadTimeHours),
+      bookingAdvanceDays: Number(advanceDays),
+      bookingInstructions: instructions || undefined,
+    }),
+    onSuccess: () => { toast({ title: "Booking settings saved" }); qc.invalidateQueries({ queryKey: ["tenant"] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const copy = (t: string) => { navigator.clipboard.writeText(t); toast({ title: "Copied" }); };
+
+  return (
+    <Card className="border-brand-200">
+      <CardHeader>
+        <CardTitle className="text-base">📅 Online booking</CardTitle>
+        <CardDescription>Let customers book an appointment from a public page — it arrives in your leads with the requested time to confirm.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enable online booking
+        </label>
+
+        {slug && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Your booking link</Label>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 overflow-x-auto">{bookingUrl}</code>
+              <Button type="button" size="sm" variant="outline" onClick={() => copy(bookingUrl)}><Copy className="w-3.5 h-3.5" /></Button>
+              <a href={bookingUrl} target="_blank" rel="noopener noreferrer"><Button type="button" size="sm" variant="outline">Open</Button></a>
+            </div>
+            <p className="text-xs text-muted-foreground">Share this, or add a &quot;Book now&quot; button to your website &amp; Google profile.</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5"><Label className="text-xs">Slot (min)</Label><Input type="number" value={slotMinutes} onChange={(e) => setSlotMinutes(+e.target.value)} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Min notice (hrs)</Label><Input type="number" value={leadTimeHours} onChange={(e) => setLeadTimeHours(+e.target.value)} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Up to (days)</Label><Input type="number" value={advanceDays} onChange={(e) => setAdvanceDays(+e.target.value)} /></div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Services (one per line, optional)</Label>
+          <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} placeholder={"Aircon service\nGeneral repair\nQuote / inspection"} value={services} onChange={(e) => setServices(e.target.value)} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Page instructions (optional)</Label>
+          <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="e.g. We service the northern suburbs only." value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+        </div>
+
+        <p className="text-xs text-muted-foreground">Available times come from your <strong>business hours</strong> (set in Profile/Business). Bookings arrive as leads for you to confirm.</p>
+
+        <Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "Saving…" : "Save booking settings"}</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Lead Sources ─── */
 function LeadSourcesTab() {
   const qc = useQueryClient();
@@ -861,6 +952,9 @@ function LeadSourcesTab() {
           </details>
         </CardContent>
       </Card>
+
+      {/* Online booking widget */}
+      <BookingCard />
 
       {/* Google Ads */}
       <Card>
