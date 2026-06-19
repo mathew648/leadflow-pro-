@@ -13,14 +13,16 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/features" className="hover:text-gray-900">Features</Link>
             <Link href="/compare" className="hover:text-gray-900">Why us</Link>
             <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
-            <Link href="/login" className="hover:text-gray-900">Log in</Link>
           </nav>
-          <Link
-            href="/register"
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-          >
-            Start free
-          </Link>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-gray-900">Log in</Link>
+            <Link
+              href="/register"
+              className="rounded-lg bg-brand-600 px-3.5 sm:px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 whitespace-nowrap"
+            >
+              Start free
+            </Link>
+          </div>
         </div>
       </header>
 
