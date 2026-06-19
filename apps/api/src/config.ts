@@ -4,8 +4,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "staging", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(4000),
   HOST: z.string().default("0.0.0.0"),
-  APP_URL: z.string().url().default("http://localhost:3000"),
-  API_URL: z.string().url().default("http://localhost:4000"),
+  // .catch() (not just .default) so a malformed value falls back instead of crash-looping
+  // the whole API on boot. Local .env sets these explicitly; prod falls back to the live URLs.
+  APP_URL: z.string().url().catch("https://www.tradiejet.com"),
+  API_URL: z.string().url().catch("https://leadflow-pro-api-37bj.onrender.com"),
 
   DATABASE_URL: z.string().url(),
   DATABASE_POOL_MAX: z.coerce.number().default(20),
