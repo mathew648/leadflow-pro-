@@ -27,10 +27,13 @@ async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
 
   const activeToken = token ?? _accessToken;
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
+  const headers: Record<string, string> = {
+    // Only send a JSON content-type when there's actually a body — Fastify rejects an
+    // empty body that's labelled application/json (this was breaking /auth/refresh →
+    // every dashboard load bounced to /login).
+    ...(init.body !== undefined && init.body !== null ? { "Content-Type": "application/json" } : {}),
     ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-    ...options.headers,
+    ...(options.headers as Record<string, string> | undefined),
   };
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: "include" });

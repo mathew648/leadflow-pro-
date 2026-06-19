@@ -3,6 +3,7 @@ import type { ComponentType, CSSProperties } from "react";
 import {
   Zap, Inbox, FileText, CalendarCheck, CreditCard, Bot, BarChart3,
   ArrowRight, ArrowDown, MapPin, Smartphone, ShieldCheck, Star, Globe,
+  CalendarClock, Repeat, TrendingUp,
 } from "lucide-react";
 import { SiGoogle, SiMeta, SiStripe, SiXero, SiMyob } from "react-icons/si";
 
@@ -56,9 +57,12 @@ const FAQS = [
 
 const FEATURES = [
   { icon: Inbox, title: "Every lead in one inbox", desc: "Website, Google, Meta — even your Builderscrack, hipages & NoCowboys jobs. Forward them in and they all land in one place with an instant auto-reply." },
+  { icon: CalendarClock, title: "Online booking, 24/7", desc: "Customers pick a service and time on your branded booking page — it drops straight into your leads, even while you're on the tools." },
   { icon: FileText, title: "Quote in minutes", desc: "Build quotes from your price book. Customers review, e-sign and approve from their phone." },
   { icon: CalendarCheck, title: "Schedule & track jobs", desc: "Turn approved quotes into jobs, assign your team, and track them through to completion." },
+  { icon: Repeat, title: "Recurring maintenance", desc: "Turn one-off jobs into steady income — service agreements auto-create the job and the invoice on schedule." },
   { icon: CreditCard, title: "Invoice & get paid", desc: "Send branded invoices with online card payment. Mark paid and it syncs to Xero automatically." },
+  { icon: TrendingUp, title: "Profit on every job", desc: "Materials, labour and revenue add up automatically — see exactly what you made, and your margin, on every job." },
   { icon: Bot, title: "Automated follow-ups", desc: "New-lead replies, quote follow-ups and review requests run themselves over email and SMS." },
   { icon: BarChart3, title: "Know your numbers", desc: "See leads, revenue and pipeline at a glance, so you know where the next job is coming from." },
 ];
