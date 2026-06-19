@@ -10,10 +10,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, isHydrated, setAuth, clearAuth, setHydrated } = useAuthStore();
 
   useEffect(() => {
+    // Already authenticated (e.g. just logged in) — never re-check or we risk
+    // bouncing a valid session back to /login.
+    if (user) {
+      if (!isHydrated) setHydrated(true);
+      return;
+    }
+
     let cancelled = false;
 
     async function hydrate() {
-      // Try to silently refresh from the httpOnly refresh-token cookie
+      // No user in memory (fresh page load) — try a silent refresh from the cookie.
       const token = await refreshAccessToken();
       if (cancelled) return;
 
@@ -39,15 +46,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
 
-    if (!isHydrated) {
-      hydrate();
-    }
-
+    hydrate();
     return () => { cancelled = true; };
-  }, [isHydrated]);
+  }, [user]);
 
-  // Show nothing until we know whether the session is valid
-  if (!isHydrated || !user) return null;
+  // A logged-in user always renders; otherwise wait (hydrating) or redirect (no session).
+  if (!user) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
