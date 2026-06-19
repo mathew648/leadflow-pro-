@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +36,8 @@ type FormValues = z.infer<typeof schema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get("ref") ?? undefined;
   const setAuth = useAuthStore((s) => s.setAuth);
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [accountType, setAccountType] = useState<"tradie" | "non_tradie">("tradie");
@@ -86,6 +88,7 @@ export default function RegisterPage() {
         ...values,
         tradeTypes: accountType === "tradie" ? selectedTrades : [],
         accountType,
+        referralCode: refCode,
       });
       setAuth(user);
       router.push("/dashboard");

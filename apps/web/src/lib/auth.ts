@@ -49,6 +49,7 @@ export async function register(body: {
   country: "AU" | "NZ";
   tradeTypes: string[];
   accountType?: "tradie" | "non_tradie";
+  referralCode?: string;
 }): Promise<{ accessToken: string; user: AuthUser }> {
   const data = await api.post<{ accessToken: string; expiresIn: number; user: AuthUser }>("/auth/register", body);
   setToken(data.accessToken);

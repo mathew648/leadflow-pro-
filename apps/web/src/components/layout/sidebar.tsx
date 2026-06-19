@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users2, UserCheck, Briefcase, FileText,
   Receipt, Calendar, Settings, MessageSquare, BarChart3, LogOut,
-  X, Sparkles, Package, Workflow, HardHat, ShieldCheck, Repeat,
+  X, Sparkles, Package, Workflow, HardHat, ShieldCheck, Repeat, Gift,
 } from "lucide-react";
 import { JetMark } from "@/components/logo";
 import { cn, initials } from "@/lib/utils";
@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/automations", icon: Workflow, label: "Automations" },
   { href: "/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/ai", icon: Sparkles, label: "AI Assistant" },
+  { href: "/refer", icon: Gift, label: "Refer & Earn" },
 ];
 
 // Non-tradie ("Lead Manager") accounts get a simplified menu.
