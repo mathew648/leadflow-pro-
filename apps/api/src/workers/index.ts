@@ -5,6 +5,7 @@ import { startAIScoringWorker } from "./ai-scoring.worker.js";
 import { startAutomationWorker } from "./automation.worker.js";
 import { startNotificationsWorker } from "./notifications.worker.js";
 import { startAccountingSyncWorker } from "./accounting-sync.worker.js";
+import { startRecurringWorker } from "./recurring.worker.js";
 
 export function startAllWorkers() {
   const workers = [
@@ -15,6 +16,7 @@ export function startAllWorkers() {
     startAutomationWorker(),
     startNotificationsWorker(),
     startAccountingSyncWorker(),
+    startRecurringWorker(),
   ];
 
   console.log(`[workers] Started ${workers.length} BullMQ workers`);

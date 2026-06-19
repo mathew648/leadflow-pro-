@@ -13,6 +13,7 @@ export const QUEUES = {
   WEBHOOKS: "webhooks",
   EMAIL: "email",
   SMS: "sms",
+  RECURRING: "recurring",
 } as const;
 
 // Queue instances (lazy init)

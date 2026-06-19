@@ -64,9 +64,12 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
 
     for (const entry of body?.entry ?? []) {
       for (const change of entry?.changes ?? []) {
-        if (change.field !== "leadgen") continue;
+        // Lead events arrive as field "leadgen" (classic) — accept "leads_retrieval" too
+        // in case Meta's newer use-case webhooks label it that way.
+        if (change.field !== "leadgen" && change.field !== "leads_retrieval") continue;
 
-        const { leadgen_id: leadgenId, form_id: formId, ad_id: adId } = change.value;
+        const { leadgen_id: leadgenId, form_id: formId, ad_id: adId } = change.value ?? {};
+        if (!leadgenId) continue;
 
         // Fetch lead data from Meta Graph API (page token stored encrypted)
         try {
