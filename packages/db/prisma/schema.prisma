@@ -248,6 +248,7 @@ model Tenant {
   accountingConnections AccountingConnection[]
   leadSources     LeadSourceConfig[]
   auditLogs       AuditLog[]
+  serviceAgreements ServiceAgreement[]
 
   @@map("tenants")
 }
@@ -608,6 +609,7 @@ model Customer {
   invoices    Invoice[]
   payments    Payment[]
   messages    Message[]
+  serviceAgreements ServiceAgreement[]
 
   @@index([tenantId])
   @@index([email, tenantId])
@@ -651,6 +653,7 @@ model Property {
   customer Customer  @relation(fields: [customerId], references: [id])
   quotes   Quote[]
   jobs     Job[]
+  serviceAgreements ServiceAgreement[]
 
   @@index([customerId])
   @@index([tenantId])
@@ -1402,4 +1405,54 @@ model AuditLog {
   @@index([tenantId, entityType, entityId])
   @@index([tenantId, actorId])
   @@map("audit_logs")
+}
+
+// ─── Recurring / maintenance service agreements ───
+enum RecurrenceFrequency {
+  weekly
+  fortnightly
+  monthly
+  quarterly
+  biannually
+  annually
+}
+
+enum ServiceAgreementStatus {
+  active
+  paused
+  ended
+}
+
+model ServiceAgreement {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @db.Uuid @map("tenant_id")
+  customerId  String @db.Uuid @map("customer_id")
+  propertyId  String? @db.Uuid @map("property_id")
+
+  title       String  @db.VarChar(300)
+  description String?
+  frequency   RecurrenceFrequency
+  intervalCount Int   @default(1) @map("interval_count")
+
+  nextRunAt   DateTime  @map("next_run_at")
+  lastRunAt   DateTime? @map("last_run_at")
+
+  priceCents     Int     @default(0) @map("price_cents")
+  autoInvoice    Boolean @default(false) @map("auto_invoice")
+  assignedUserId String? @db.Uuid @map("assigned_user_id")
+
+  status       ServiceAgreementStatus @default(active)
+  jobsCreated  Int @default(0) @map("jobs_created")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdById String?   @db.Uuid @map("created_by_id")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer  @relation(fields: [customerId], references: [id])
+  property Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([nextRunAt])
+  @@map("service_agreements")
 }

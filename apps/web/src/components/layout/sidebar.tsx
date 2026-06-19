@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users2, UserCheck, Briefcase, FileText,
   Receipt, Calendar, Settings, MessageSquare, BarChart3, LogOut,
-  X, Sparkles, Package, Workflow, HardHat, ShieldCheck,
+  X, Sparkles, Package, Workflow, HardHat, ShieldCheck, Repeat,
 } from "lucide-react";
 import { JetMark } from "@/components/logo";
 import { cn, initials } from "@/lib/utils";
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/quotes", icon: FileText, label: "Quotes" },
   { href: "/invoices", icon: Receipt, label: "Invoices" },
   { href: "/schedule", icon: Calendar, label: "Schedule" },
+  { href: "/maintenance", icon: Repeat, label: "Maintenance" },
   { href: "/messages", icon: MessageSquare, label: "Messages" },
   { href: "/catalog", icon: Package, label: "Price Book" },
   { href: "/automations", icon: Workflow, label: "Automations" },
@@ -29,7 +30,7 @@ const NAV_ITEMS = [
 ];
 
 // Non-tradie ("Lead Manager") accounts get a simplified menu.
-const NON_TRADIE_HIDDEN = new Set(["/jobs", "/field", "/quotes", "/schedule", "/catalog", "/ai"]);
+const NON_TRADIE_HIDDEN = new Set(["/jobs", "/field", "/quotes", "/schedule", "/catalog", "/ai", "/maintenance"]);
 
 export function Sidebar() {
   const pathname = usePathname();
