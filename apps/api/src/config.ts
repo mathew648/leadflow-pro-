@@ -60,6 +60,7 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),
   META_REDIRECT_URI: z.string().url().optional(),
+  META_GRAPH_VERSION: z.string().default("v21.0"), // bump if Facebook deprecates it
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(3600000),
   RATE_LIMIT_MAX: z.coerce.number().default(1000),

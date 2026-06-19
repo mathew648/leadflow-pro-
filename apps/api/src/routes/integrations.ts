@@ -307,7 +307,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
   );
 
   // ── Meta (Facebook / Instagram) Lead Ads — self-serve connect ──
-  const FB = "https://graph.facebook.com/v18.0";
+  const FB = `https://graph.facebook.com/${config.META_GRAPH_VERSION}`;
 
   // GET /api/v1/integrations/meta/connect — start Facebook Login
   fastify.get(
@@ -325,7 +325,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         response_type: "code",
         scope: "pages_show_list,pages_manage_metadata,pages_read_engagement,leads_retrieval,business_management",
       });
-      return { data: { authUrl: `https://www.facebook.com/v18.0/dialog/oauth?${params}` } };
+      return { data: { authUrl: `https://www.facebook.com/${config.META_GRAPH_VERSION}/dialog/oauth?${params}` } };
     }
   );
 
