@@ -42,7 +42,9 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         state,
       });
 
-      const authUrl = `https://login.xero.com/identity/connect/authorize?${params}`;
+      // Encode spaces in scope as %20 (not URLSearchParams' default '+') — Xero reads
+      // '+' literally and rejects it as invalid_scope.
+      const authUrl = `https://login.xero.com/identity/connect/authorize?${params.toString().replace(/\+/g, "%20")}`;
       return { data: { authUrl } };
     }
   );
@@ -175,7 +177,8 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         scope: config.MYOB_SCOPE, // new granular scopes + offline_access (post-March-2025)
         state,
       });
-      return { data: { authUrl: `${MYOB_AUTH_URL}?${params}` } };
+      // %20 (not '+') for the spaces between scopes, same reason as Xero.
+      return { data: { authUrl: `${MYOB_AUTH_URL}?${params.toString().replace(/\+/g, "%20")}` } };
     }
   );
 
