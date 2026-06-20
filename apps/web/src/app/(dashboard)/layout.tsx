@@ -1,13 +1,22 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuthStore } from "@/lib/store";
 import { getMe, refreshAccessToken } from "@/lib/auth";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, isHydrated, setAuth, clearAuth, setHydrated } = useAuthStore();
+
+  // Technicians (field staff) are confined to the Field App + Messages.
+  useEffect(() => {
+    if (user?.role === "technician") {
+      const allowed = pathname.startsWith("/field") || pathname.startsWith("/messages");
+      if (!allowed) router.replace("/field");
+    }
+  }, [user, pathname, router]);
 
   useEffect(() => {
     // Already authenticated (e.g. just logged in) — never re-check or we risk

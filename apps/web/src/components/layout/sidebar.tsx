@@ -48,9 +48,15 @@ export function Sidebar() {
     router.push("/login");
   }
 
-  const navItems = user?.tenant?.accountType === "non_tradie"
+  // Technicians (field staff) only get the Field App + Messages — not the office menu.
+  const isTechnician = user?.role === "technician";
+  const baseItems = user?.tenant?.accountType === "non_tradie"
     ? NAV_ITEMS.filter((i) => !NON_TRADIE_HIDDEN.has(i.href))
     : NAV_ITEMS;
+  const navItems = isTechnician
+    ? baseItems.filter((i) => i.href === "/field" || i.href === "/messages")
+    : baseItems;
+  const homeHref = isTechnician ? "/field" : "/dashboard";
 
   const navLink = (href: string, Icon: any, label: string, extra?: string) => {
     const active = pathname === href || pathname.startsWith(href + "/");
@@ -86,7 +92,7 @@ export function Sidebar() {
       >
         {/* Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={closeOnMobile}>
+          <Link href={homeHref} className="flex items-center gap-2" onClick={closeOnMobile}>
             <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
               <JetMark className="w-4 h-4 text-white" />
             </div>
@@ -109,7 +115,7 @@ export function Sidebar() {
         {/* Footer */}
         <div className="border-t border-white/10 p-3 space-y-1">
           {user?.isPlatformAdmin && navLink("/admin", ShieldCheck, "Platform Admin", "text-amber-300")}
-          {navLink("/settings", Settings, "Settings")}
+          {!isTechnician && navLink("/settings", Settings, "Settings")}
 
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
