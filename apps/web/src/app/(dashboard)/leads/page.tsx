@@ -158,6 +158,10 @@ export default function LeadsPage() {
     queryFn: () => api.get<any>("/leads?limit=200"),
   });
   const allLeads: any[] = leadsRaw?.data ?? [];
+  // Never hide a lead: any lead whose stageId is null or doesn't match a column gets
+  // bucketed into the first column (and if there are no stages at all, show one column).
+  const stageIdSet = new Set(stages.map((s: any) => s.id));
+  const cols: any[] = stages.length > 0 ? stages : [{ id: "__unstaged__", name: "Leads", color: "#6B7280" }];
 
   return (
     <div className="flex flex-col h-full">
@@ -195,8 +199,8 @@ export default function LeadsPage() {
       {/* Kanban */}
       {view === "kanban" && (
         <div className="kanban-board p-4 lg:p-6 flex-1 overflow-x-auto">
-          {stages.map((stage: any) => {
-            const stageLeads = allLeads.filter((l: any) => l.stageId === stage.id);
+          {cols.map((stage: any, idx: number) => {
+            const stageLeads = allLeads.filter((l: any) => l.stageId === stage.id || (idx === 0 && !stageIdSet.has(l.stageId)));
             const stats = pipeline[stage.id];
             return (
               <div key={stage.id} className="kanban-column">

@@ -212,11 +212,16 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Get or create default stage
+      // Always give a lead a valid stage — the default stage, or the first stage by
+      // position if none is marked default. Without this a lead can end up with a null
+      // stageId and disappear from the kanban board.
       let stageId = body.stageId;
       if (!stageId) {
         const defaultStage = await prisma.pipelineStage.findFirst({
           where: { tenantId, isDefault: true },
+        }) ?? await prisma.pipelineStage.findFirst({
+          where: { tenantId },
+          orderBy: { position: "asc" },
         });
         stageId = defaultStage?.id;
       }
