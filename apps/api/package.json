@@ -33,6 +33,7 @@
     "exceljs": "^4.4.0",
     "fastify": "^4.28.1",
     "fastify-plugin": "^4.5.0",
+    "fastify-raw-body": "^4.3.0",
     "ioredis": "^5.4.1",
     "nanoid": "^5.0.7",
     "nodemailer": "^6.9.15",
