@@ -3,6 +3,7 @@ import fastifyCors from "@fastify/cors";
 import fastifyHelmet from "@fastify/helmet";
 import fastifyCookie from "@fastify/cookie";
 import fastifyMultipart from "@fastify/multipart";
+import fastifyRawBody from "fastify-raw-body";
 import fastifyRateLimit from "@fastify/rate-limit";
 import { ZodError } from "zod";
 import { config } from "./config.js";
@@ -138,6 +139,15 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   await fastify.register(fastifyMultipart, {
     limits: { fileSize: 20 * 1024 * 1024, files: 10 },
+  });
+
+  // Preserve the raw request body for routes that set { config: { rawBody: true } }
+  // — required for Stripe webhook signature verification (POST /webhooks/stripe).
+  await fastify.register(fastifyRawBody, {
+    field: "rawBody",
+    global: false,
+    encoding: "utf8",
+    runFirst: true,
   });
 
   if (!opts.disableRateLimit && !isTest) {
