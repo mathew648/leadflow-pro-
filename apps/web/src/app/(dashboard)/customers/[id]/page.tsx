@@ -81,14 +81,14 @@ export default function CustomerDetailPage() {
     ? `${customer.companyName}${customer.firstName ? ` (${customer.firstName} ${customer.lastName})` : ""}`
     : [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email;
 
-  const jobs: any[] = jobsData?.data ?? [];
-  const quotes: any[] = quotesData?.data ?? [];
-  const invoices: any[] = invoicesData?.data ?? [];
+  const jobs: any[] = (Array.isArray(jobsData) ? jobsData : (jobsData?.data ?? []));
+  const quotes: any[] = (Array.isArray(quotesData) ? quotesData : (quotesData?.data ?? []));
+  const invoices: any[] = (Array.isArray(invoicesData) ? invoicesData : (invoicesData?.data ?? []));
 
-  const totalRevenue = (invoicesData?.data ?? [])
+  const totalRevenue = ((Array.isArray(invoicesData) ? invoicesData : (invoicesData?.data ?? [])))
     .filter((i: any) => i.status === "paid")
     .reduce((sum: number, i: any) => sum + i.totalCents, 0);
-  const openBalance = (invoicesData?.data ?? [])
+  const openBalance = ((Array.isArray(invoicesData) ? invoicesData : (invoicesData?.data ?? [])))
     .filter((i: any) => ["sent", "partial", "overdue"].includes(i.status))
     .reduce((sum: number, i: any) => sum + i.amountDueCents, 0);
 

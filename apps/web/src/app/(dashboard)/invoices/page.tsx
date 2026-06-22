@@ -92,9 +92,9 @@ export default function InvoicesPage() {
     }));
   }
 
-  const invoices: any[] = data?.data ?? [];
+  const invoices: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
   const summary = data?.summary;
-  const customers: any[] = customersData?.data ?? [];
+  const customers: any[] = (Array.isArray(customersData) ? customersData : (customersData?.data ?? []));
 
   const totalCents = form.lineItems.reduce((s, li) => s + calcLine(li), 0);
   const canSubmit = form.customerId && form.lineItems.every((li) => li.description && Number(li.unitPriceCents) >= 0);

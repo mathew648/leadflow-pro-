@@ -89,8 +89,8 @@ export default function JobsPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const jobs: any[] = data?.data ?? [];
-  const customers: any[] = customersData?.data ?? [];
+  const jobs: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
+  const customers: any[] = (Array.isArray(customersData) ? customersData : (customersData?.data ?? []));
   const canSubmit = form.customerId && form.title;
 
   return (

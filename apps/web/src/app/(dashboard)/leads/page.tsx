@@ -157,7 +157,9 @@ export default function LeadsPage() {
     queryKey: ["leads", "all"],
     queryFn: () => api.get<any>("/leads?limit=200"),
   });
-  const allLeads: any[] = leadsRaw?.data ?? [];
+  // api.get already unwraps `{ data }` to the array, so use it directly — but stay
+  // defensive in case a `{ data, meta }` object comes through.
+  const allLeads: any[] = Array.isArray(leadsRaw) ? leadsRaw : (leadsRaw?.data ?? []);
   // Never hide a lead: any lead whose stageId is null or doesn't match a column gets
   // bucketed into the first column (and if there are no stages at all, show one column).
   const stageIdSet = new Set(stages.map((s: any) => s.id));
@@ -253,7 +255,7 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {(listData?.data ?? allLeads).map((lead: any) => (
+                {(Array.isArray(listData) ? listData : (listData?.data ?? allLeads)).map((lead: any) => (
                   <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} className="hover:bg-muted/30 cursor-pointer transition-colors">
                     <td className="px-4 py-3">
                       <div>

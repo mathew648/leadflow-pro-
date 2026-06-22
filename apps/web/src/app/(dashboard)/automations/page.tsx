@@ -133,7 +133,7 @@ export default function AutomationsPage() {
     }));
   }
 
-  const workflows: any[] = data?.data ?? [];
+  const workflows: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
 
   return (
     <div>
