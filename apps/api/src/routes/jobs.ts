@@ -678,6 +678,25 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         catalogItemId: li.catalogItemId ?? undefined,
       })) ?? [];
 
+      // No quote? Build the invoice from the job's actual materials + labour, so it's
+      // never empty. Falls back to the quoted amount, then a single editable line.
+      if (lineItems.length === 0) {
+        const tenant = await prisma.tenant.findUnique({ where: { id: request.tenantId }, select: { country: true } });
+        const gstRate = tenant?.country === "NZ" ? 0.15 : 0.10;
+        let pos = 0;
+        const add = (description: string, quantity: number, unitPriceCents: number) => {
+          const sub = Math.round(quantity * unitPriceCents);
+          const gst = Math.round(sub * gstRate);
+          lineItems.push({ position: pos++, description, quantity, unitPriceCents, gstRate, subtotalCents: sub, gstCents: gst, totalCents: sub + gst, discountPercent: 0, discountCents: 0, catalogItemId: undefined });
+        };
+        for (const m of (job.materials ?? [])) add(m.name, Number(m.quantity), m.unitPriceCents);
+        for (const t of (job.timeEntries ?? [])) {
+          const hrs = t.durationMinutes ? t.durationMinutes / 60 : 0;
+          if (hrs > 0 && (t.hourlyRateCents ?? 0) > 0) add(`Labour — ${hrs.toFixed(2)} hr`, Math.round(hrs * 100) / 100, t.hourlyRateCents!);
+        }
+        if (lineItems.length === 0) add(job.title || "Work performed", 1, job.quotedAmountCents || 0);
+      }
+
       const totalCents = lineItems.reduce((sum, li) => sum + li.totalCents, 0);
       const subtotalCents = lineItems.reduce((sum, li) => sum + li.subtotalCents - li.discountCents, 0);
       const gstCents = lineItems.reduce((sum, li) => sum + li.gstCents, 0);

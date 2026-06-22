@@ -269,7 +269,9 @@ export default async function catalogRoutes(fastify: FastifyInstance) {
         prisma.catalogItem.count({ where }),
       ]);
 
-      return { data: items, meta: { total, limit: query.limit, offset: query.offset } };
+      // Map internal sell/cost fields to the unitPrice/unitCost names the client uses.
+      const mapped = items.map((i: any) => ({ ...i, unitPriceCents: i.sellPriceCents, unitCostCents: i.costPriceCents }));
+      return { data: mapped, meta: { total, limit: query.limit, offset: query.offset } };
     }
   );
 
@@ -333,7 +335,7 @@ export default async function catalogRoutes(fastify: FastifyInstance) {
       if (!item) {
         return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Catalog item not found" } });
       }
-      return { data: item };
+      return { data: { ...item, unitPriceCents: (item as any).sellPriceCents, unitCostCents: (item as any).costPriceCents } };
     }
   );
 
