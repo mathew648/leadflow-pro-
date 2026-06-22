@@ -485,26 +485,30 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const job = await tx.job.create({
-          data: {
-            tenantId: quote.tenantId,
-            jobNumber,
-            quoteId: quote.id,
-            customerId: quote.customerId,
-            title: quote.title,
-            description: quote.description ?? undefined,
-            quotedAmountCents: quote.totalCents,
-            status: "pending",
-            priority: "normal",
-            createdById: quote.createdById ?? undefined,
-          },
-        });
-
-        if (settings) {
-          await tx.tenantSettings.update({
-            where: { tenantId: quote.tenantId },
-            data: { jobNextNumber: { increment: 1 } },
+        // Reuse the job this quote came from (job → quote flow). Job.quoteId is unique,
+        // so creating a second job for the same quote would throw a 500 on approval.
+        let job = await tx.job.findFirst({ where: { quoteId: quote.id, deletedAt: null } });
+        if (!job) {
+          job = await tx.job.create({
+            data: {
+              tenantId: quote.tenantId,
+              jobNumber,
+              quoteId: quote.id,
+              customerId: quote.customerId,
+              title: quote.title,
+              description: quote.description ?? undefined,
+              quotedAmountCents: quote.totalCents,
+              status: "pending",
+              priority: "normal",
+              createdById: quote.createdById ?? undefined,
+            },
           });
+          if (settings) {
+            await tx.tenantSettings.update({
+              where: { tenantId: quote.tenantId },
+              data: { jobNextNumber: { increment: 1 } },
+            });
+          }
         }
 
         await tx.quote.update({ where: { id: quote.id }, data: { convertedToJobId: job.id } });

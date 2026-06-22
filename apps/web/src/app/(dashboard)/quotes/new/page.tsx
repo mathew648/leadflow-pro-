@@ -67,6 +67,31 @@ export default function NewQuotePage() {
     queryFn: () => api.get<any>("/customers?limit=200"),
   });
 
+  const { data: catalogData } = useQuery({
+    queryKey: ["catalog-items-quote"],
+    queryFn: () => api.get<any>("/catalog/items?limit=200"),
+  });
+  const catalogItems: any[] = (Array.isArray(catalogData) ? catalogData : (catalogData?.data ?? []));
+
+  const addFromCatalog = (itemId: string) => {
+    const it = catalogItems.find((c) => c.id === itemId);
+    if (!it) return;
+    const line: LineItem = {
+      ...BLANK_LINE,
+      description: it.name ?? it.description ?? "",
+      unit: it.unit ?? "ea",
+      quantity: 1,
+      unitPriceCents: it.unitPriceCents ?? it.sellPriceCents ?? 0,
+      costPriceCents: it.unitCostCents ?? it.costPriceCents ?? 0,
+      gstRate: it.gstRate ?? 0.1,
+    };
+    setLineItems((prev) => {
+      // Replace the first row if it's still blank, otherwise append.
+      if (prev.length === 1 && !prev[0].description && !prev[0].unitPriceCents) return [{ ...line, position: 0 }];
+      return [...prev, { ...line, position: prev.length }];
+    });
+  };
+
   const createMutation = useMutation({
     mutationFn: () =>
       api.post<any>("/quotes", {
@@ -239,8 +264,9 @@ export default function NewQuotePage() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={(li.unitPriceCents / 100).toFixed(2)}
-                          onChange={(e) => updateLine(i, "unitPriceCents", Math.round(Number(e.target.value) * 100))}
+                          placeholder="0.00"
+                          value={li.unitPriceCents ? li.unitPriceCents / 100 : ""}
+                          onChange={(e) => updateLine(i, "unitPriceCents", Math.round((Number(e.target.value) || 0) * 100))}
                           className="w-full pl-6 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
@@ -271,9 +297,27 @@ export default function NewQuotePage() {
               })}
             </div>
 
-            <Button variant="outline" size="sm" className="mt-3" onClick={addLine}>
-              <Plus className="w-4 h-4 mr-1.5" /> Add Line Item
-            </Button>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={addLine}>
+                <Plus className="w-4 h-4 mr-1.5" /> Add Line Item
+              </Button>
+              {catalogItems.length > 0 && (
+                <select
+                  value=""
+                  aria-label="Add from price book"
+                  title="Add from price book"
+                  onChange={(e) => { if (e.target.value) { addFromCatalog(e.target.value); e.target.value = ""; } }}
+                  className="px-3 py-1.5 text-sm border rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">+ Add from price book…</option>
+                  {catalogItems.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.name}{(it.unitPriceCents ?? it.sellPriceCents) ? ` — ${formatCurrency((it.unitPriceCents ?? it.sellPriceCents) / 100)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
 
             {/* Totals */}
             <div className="mt-4 pt-4 border-t space-y-1 text-sm max-w-xs ml-auto">
