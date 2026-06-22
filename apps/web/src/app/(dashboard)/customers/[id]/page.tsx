@@ -96,7 +96,7 @@ export default function CustomerDetailPage() {
     <div>
       <Topbar
         title="Customer 360"
-        action={{ label: "New Job", onClick: () => router.push(`/jobs/new?customerId=${id}`), icon: <Plus className="w-4 h-4" /> }}
+        action={{ label: "New Job", onClick: () => router.push(`/jobs?newFor=${id}`), icon: <Plus className="w-4 h-4" /> }}
       />
 
       <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-5">
@@ -298,7 +298,7 @@ export default function CustomerDetailPage() {
             <CardContent className="p-0">
               <div className="flex items-center justify-between px-4 py-3 border-b">
                 <p className="text-sm font-medium">Jobs ({jobs.length})</p>
-                <Link href={`/jobs/new?customerId=${id}`}>
+                <Link href={`/jobs?newFor=${id}`}>
                   <Button size="sm"><Plus className="w-4 h-4 mr-1" /> New Job</Button>
                 </Link>
               </div>

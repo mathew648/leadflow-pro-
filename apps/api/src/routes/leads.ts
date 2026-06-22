@@ -55,7 +55,7 @@ const listLeadsSchema = z.object({
   dateTo: z.string().datetime().optional(),
   sort: z.enum(["created_at", "updated_at", "ai_score", "estimated_value"]).default("created_at"),
   order: z.enum(["asc", "desc"]).default("desc"),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
+  limit: z.coerce.number().int().min(1).max(500).default(25),
   cursor: z.string().optional(),
 });
 
