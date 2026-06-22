@@ -376,8 +376,8 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const body = z.object({
-        latitude: z.number().optional(),
-        longitude: z.number().optional(),
+        latitude: z.number().nullable().optional(),
+        longitude: z.number().nullable().optional(),
       }).parse(request.body ?? {});
 
       const job = await prisma.job.findFirst({
