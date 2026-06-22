@@ -33,6 +33,13 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+// ISO → value for <input type="datetime-local"> (local time, "YYYY-MM-DDTHH:mm")
+function toLocalInput(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -57,7 +64,7 @@ export default function JobDetailPage() {
   });
 
   const startMutation = useMutation({
-    mutationFn: () => api.post(`/jobs/${id}/start`, { latitude: null, longitude: null }),
+    mutationFn: () => api.post(`/jobs/${id}/start`, {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["job", id] });
       toast({ title: "Job started — time tracking active" });
@@ -209,6 +216,22 @@ export default function JobDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* Schedule date & time */}
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-sm text-muted-foreground">Scheduled:</span>
+              <input
+                type="datetime-local"
+                aria-label="Job scheduled date and time"
+                title="Job scheduled date and time"
+                defaultValue={toLocalInput(job.scheduledStart)}
+                onChange={(e) => { if (e.target.value) patchMutation.mutate({ scheduledStart: new Date(e.target.value).toISOString() }); }}
+                className="px-2.5 py-1 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {!job.scheduledStart && <span className="text-xs text-amber-600">Pick a date &amp; time to schedule this job</span>}
+              {patchMutation.isPending && <span className="text-xs text-muted-foreground">Saving…</span>}
+            </div>
 
             {/* Info grid */}
             <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
