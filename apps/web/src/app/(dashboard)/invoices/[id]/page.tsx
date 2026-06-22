@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Send, DollarSign, Download, ExternalLink,
-  CheckCircle, Clock, AlertCircle, XCircle, FileText,
+  CheckCircle, Clock, AlertCircle, XCircle, FileText, Paperclip,
 } from "lucide-react";
 import Link from "next/link";
 import { Topbar } from "@/components/layout/topbar";
@@ -49,7 +49,7 @@ export default function InvoiceDetailPage() {
     queryFn: () => api.get<any>(`/invoices/${id}`),
   });
 
-  const invoice = data?.data;
+  const invoice = (data as any)?.data ?? data;
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -79,6 +79,17 @@ export default function InvoiceDetailPage() {
       setPaymentRef("");
       qc.invalidateQueries({ queryKey: ["invoice", id] });
     },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (pid: string) => api.post<any>(`/invoices/${id}/payments/${pid}/approve`, {}),
+    onSuccess: () => { toast({ title: "Payment approved — synced to accounting" }); qc.invalidateQueries({ queryKey: ["invoice", id] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  const rejectMutation = useMutation({
+    mutationFn: (pid: string) => api.post<any>(`/invoices/${id}/payments/${pid}/reject`, {}),
+    onSuccess: () => { toast({ title: "Payment claim rejected" }); qc.invalidateQueries({ queryKey: ["invoice", id] }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -145,6 +156,40 @@ export default function InvoiceDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Pending payment awaiting tradie approval */}
+        {(invoice.payments ?? []).some((p: any) => p.status === "pending") && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-600" />
+              <h3 className="font-semibold text-sm text-amber-900">Payment awaiting your confirmation</h3>
+            </div>
+            {(invoice.payments ?? []).filter((p: any) => p.status === "pending").map((p: any) => (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-lg border p-3">
+                <div className="text-sm">
+                  <p className="font-semibold">
+                    {formatCurrency(p.amountCents)}
+                    <span className="font-normal text-muted-foreground"> · {(p.paymentMethod ?? "bank transfer").replace(/_/g, " ")}</span>
+                  </p>
+                  {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
+                  {p.receiptUrl && (
+                    <a href={p.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 inline-flex items-center gap-1 mt-0.5">
+                      <Paperclip className="w-3 h-3" /> View receipt
+                    </a>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
+                    <CheckCircle className="w-4 h-4 mr-1.5" /> Approve &amp; sync
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => rejectMutation.mutate(p.id)} disabled={rejectMutation.isPending}>
+                    <XCircle className="w-4 h-4 mr-1.5" /> Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Main content */}

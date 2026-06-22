@@ -1170,6 +1170,7 @@ model Payment {
   status  PaymentStatus @default(pending)
   paidAt  DateTime?     @map("paid_at")
   notes   String?
+  receiptUrl String?    @db.VarChar(500) @map("receipt_url")
 
   xeroPaymentId       String?   @db.VarChar(200) @map("xero_payment_id")
   accountingSyncedAt  DateTime? @map("accounting_synced_at")

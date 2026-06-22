@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { CheckCircle, Clock, AlertCircle, CreditCard, Zap, Phone, Mail } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
+import { CheckCircle, Clock, AlertCircle, CreditCard, Zap, Phone, Mail, Banknote, Loader2, Paperclip } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
@@ -10,6 +10,17 @@ async function fetchPortal(token: string) {
   const res = await fetch(`${API_BASE}/invoices/portal/${token}`);
   if (!res.ok) throw new Error("Invoice not found");
   return res.json();
+}
+
+async function uploadReceipt(token: string, file: File): Promise<string> {
+  const r = await fetch(`${API_BASE}/invoices/portal/${token}/receipt-url`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, contentType: file.type }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j?.error?.message ?? "Could not upload receipt");
+  await fetch(j.data.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+  return j.data.fileUrl as string;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType; bg: string }> = {
@@ -23,10 +34,21 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 
 export default function InvoicePayPortal() {
   const { token } = useParams<{ token: string }>();
+  const searchParams = useSearchParams();
+  const justPaid = searchParams.get("paid") === "1";
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showItems, setShowItems] = useState(false);
+
+  // Payment UI state
+  const [cardLoading, setCardLoading] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
+  const [bankRef, setBankRef] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [payError, setPayError] = useState("");
 
   useEffect(() => {
     fetchPortal(token)
@@ -34,6 +56,32 @@ export default function InvoicePayPortal() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  const payByCard = async () => {
+    setPayError(""); setCardLoading(true);
+    try {
+      const r = await fetch(`${API_BASE}/invoices/portal/${token}/checkout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error?.message ?? "Could not start card payment");
+      window.location.href = j.data.url;
+    } catch (e: any) { setPayError(e.message); setCardLoading(false); }
+  };
+
+  const submitBank = async () => {
+    setPayError(""); setSubmitting(true);
+    try {
+      let receiptUrl: string | undefined;
+      if (receiptFile) receiptUrl = await uploadReceipt(token, receiptFile);
+      const r = await fetch(`${API_BASE}/invoices/portal/${token}/mark-paid`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: bankRef || undefined, receiptUrl }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error?.message ?? "Could not submit payment");
+      setSubmitted(true);
+    } catch (e: any) { setPayError(e.message); }
+    finally { setSubmitting(false); }
+  };
 
   if (loading) {
     return (
@@ -62,7 +110,10 @@ export default function InvoicePayPortal() {
   const StatusIcon = statusCfg.icon;
   const isPaid = invoice.status === "paid";
   const isOverdue = invoice.status === "overdue";
-  const paidCents = (invoice.payments ?? []).reduce((s: number, p: any) => s + p.amountCents, 0);
+  const allPayments = invoice.payments ?? [];
+  const paidCents = allPayments.filter((p: any) => p.status === "completed").reduce((s: number, p: any) => s + p.amountCents, 0);
+  const pendingPayment = allPayments.find((p: any) => p.status === "pending");
+  const awaitingApproval = submitted || !!pendingPayment;
   const lineItems = invoice.lineItems ?? [];
 
   return (
@@ -211,41 +262,115 @@ export default function InvoicePayPortal() {
           </div>
         )}
 
-        {/* Payment section */}
-        {!isPaid && (
-          <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-4">
-            <h3 className="font-semibold text-sm">How to Pay</h3>
+        {/* "just returned from Stripe" notice */}
+        {justPaid && !isPaid && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+            <p className="text-sm text-blue-900">Your card payment is being confirmed. This page will update shortly.</p>
+          </div>
+        )}
 
-            {/* Bank transfer details from footer text */}
-            {tenant?.invoiceFooterText || invoice.termsConditions ? (
-              <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-line">
-                {invoice.termsConditions ?? tenant?.invoiceFooterText}
-              </div>
+        {/* Payment received, awaiting approval */}
+        {!isPaid && awaitingApproval && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+            <Clock className="w-6 h-6 text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-amber-900 text-sm">Payment submitted — awaiting confirmation</p>
+              <p className="text-amber-700 text-xs">We've let {tenant?.businessName} know. They'll confirm your bank transfer shortly.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Payment section */}
+        {!isPaid && !awaitingApproval && (
+          <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-4">
+            <h3 className="font-semibold text-sm">Pay {formatCurrency(invoice.amountDueCents)}</h3>
+
+            {payError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{payError}</p>}
+
+            {/* Pay by card */}
+            <button
+              type="button"
+              onClick={payByCard}
+              disabled={cardLoading}
+              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-white font-semibold text-sm disabled:opacity-60"
+              style={{ background: brandColor }}
+            >
+              {cardLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+              Pay securely by card
+            </button>
+
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <div className="flex-1 h-px bg-gray-200" /> or <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            {/* Pay by bank transfer */}
+            {!bankOpen ? (
+              <button
+                type="button"
+                onClick={() => setBankOpen(true)}
+                className="w-full flex items-center justify-center gap-2 rounded-xl py-3 border font-semibold text-sm hover:bg-gray-50"
+              >
+                <Banknote className="w-4 h-4" /> I've paid by bank transfer
+              </button>
             ) : (
-              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
-                <p className="font-medium mb-1">Bank Transfer</p>
-                <p>Please contact {tenant?.businessName} for payment details.</p>
-                {tenant?.phone && <p className="mt-1">📞 {tenant.phone}</p>}
-                {tenant?.email && <p>✉ {tenant.email}</p>}
+              <div className="space-y-3 rounded-xl border p-4 bg-gray-50">
+                {(invoice.termsConditions || tenant?.invoiceFooterText) && (
+                  <div className="text-xs text-gray-600 whitespace-pre-line bg-white rounded-lg p-3 border">
+                    {invoice.termsConditions ?? tenant?.invoiceFooterText}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">
+                  Use invoice <strong>{invoice.invoiceNumber}</strong> as your reference, then let us know below.
+                </p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Bank reference (optional)</label>
+                  <input
+                    type="text"
+                    value={bankRef}
+                    onChange={(e) => setBankRef(e.target.value)}
+                    placeholder={invoice.invoiceNumber}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Attach receipt (optional)</label>
+                  <label className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-white cursor-pointer hover:bg-gray-50">
+                    <Paperclip className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-600 truncate">{receiptFile ? receiptFile.name : "Choose a file (JPG, PNG, PDF)"}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={submitBank}
+                  disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-white font-semibold text-sm disabled:opacity-60"
+                  style={{ background: brandColor }}
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                  Submit payment for confirmation
+                </button>
               </div>
             )}
-
-            <p className="text-xs text-gray-500 text-center">
-              Use invoice number <strong>{invoice.invoiceNumber}</strong> as your payment reference.
-            </p>
           </div>
         )}
 
         {/* Payment history */}
-        {(invoice.payments ?? []).length > 0 && (
+        {allPayments.filter((p: any) => p.status === "completed").length > 0 && (
           <div className="bg-white rounded-2xl border shadow-sm p-5">
             <h3 className="font-semibold text-sm mb-3">Payment History</h3>
             <div className="divide-y">
-              {invoice.payments.map((p: any, i: number) => (
+              {allPayments.filter((p: any) => p.status === "completed").map((p: any, i: number) => (
                 <div key={i} className="flex items-center justify-between py-2.5 text-sm">
                   <div>
                     <p className="font-medium">{formatDate(p.paidAt)}</p>
-                    <p className="text-xs text-gray-400 capitalize">{p.gateway?.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-gray-400 capitalize">{(p.paymentMethod ?? p.paymentGateway ?? "").replace(/_/g, " ")}</p>
                   </div>
                   <span className="font-semibold text-green-700">{formatCurrency(p.amountCents)}</span>
                 </div>

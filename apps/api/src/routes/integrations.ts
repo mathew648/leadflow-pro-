@@ -501,6 +501,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
           tenantId: request.tenantId,
           invoiceId: invoice.id,
         },
+        payment_intent_data: { metadata: { tenantId: request.tenantId, invoiceId: invoice.id } },
         success_url: `${config.APP_URL}/pay/${invoice.portalToken}?paid=1`,
         cancel_url: `${config.APP_URL}/pay/${invoice.portalToken}`,
       });

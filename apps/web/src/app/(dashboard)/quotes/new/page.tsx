@@ -312,7 +312,7 @@ export default function NewQuotePage() {
                   <option value="">+ Add from price book…</option>
                   {catalogItems.map((it) => (
                     <option key={it.id} value={it.id}>
-                      {it.name}{(it.unitPriceCents ?? it.sellPriceCents) ? ` — ${formatCurrency((it.unitPriceCents ?? it.sellPriceCents) / 100)}` : ""}
+                      {it.name}{(it.unitPriceCents ?? it.sellPriceCents) ? ` — ${formatCurrency(it.unitPriceCents ?? it.sellPriceCents)}` : ""}
                     </option>
                   ))}
                 </select>

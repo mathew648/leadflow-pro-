@@ -8,6 +8,8 @@ import { auditFromRequest } from "../lib/audit.js";
 import { sendBrandedEmail } from "../lib/mailer.js";
 import { notifyBusiness } from "../lib/notify.js";
 import { config } from "../config.js";
+import { presignUpload } from "../lib/r2.js";
+import Stripe from "stripe";
 
 export default async function invoicesRoutes(fastify: FastifyInstance) {
   // GET /api/v1/invoices
@@ -424,7 +426,7 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         include: {
           customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
           lineItems: { orderBy: { position: "asc" } },
-          payments: { where: { status: "completed" }, select: { amountCents: true, paidAt: true, paymentGateway: true } },
+          payments: { where: { status: { in: ["completed", "pending"] } }, select: { amountCents: true, paidAt: true, paymentGateway: true, paymentMethod: true, status: true } },
           tenant: { select: { businessName: true, logoUrl: true, phone: true, email: true, abn: true, primaryColor: true } },
         },
       });
@@ -443,6 +445,143 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
       return { data: safeInvoice };
     }
   );
+
+  // POST /api/v1/invoices/portal/:token/checkout — public: start an online card payment
+  fastify.post("/invoices/portal/:token/checkout", async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const invoice = await prisma.invoice.findFirst({
+      where: { portalToken: token, deletedAt: null },
+      include: { customer: true, tenant: true },
+    });
+    if (!invoice) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
+    if (invoice.amountDueCents <= 0) return reply.status(409).send({ error: { code: "ALREADY_PAID", message: "This invoice is already paid" } });
+    if (!config.STRIPE_SECRET_KEY) return reply.status(503).send({ error: { code: "NO_GATEWAY", message: "Online card payments are not available. Please pay by bank transfer." } });
+
+    const stripe = new Stripe(config.STRIPE_SECRET_KEY);
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: invoice.currency.toLowerCase(),
+          product_data: { name: `Invoice ${invoice.invoiceNumber} — ${invoice.tenant.businessName}` },
+          unit_amount: invoice.amountDueCents,
+        },
+        quantity: 1,
+      }],
+      customer_email: invoice.customer.email ?? undefined,
+      metadata: { tenantId: invoice.tenantId, invoiceId: invoice.id },
+      // The webhook records the payment from the PaymentIntent's metadata, so carry it through.
+      payment_intent_data: { metadata: { tenantId: invoice.tenantId, invoiceId: invoice.id } },
+      success_url: `${config.APP_URL}/pay/${invoice.portalToken}?paid=1`,
+      cancel_url: `${config.APP_URL}/pay/${invoice.portalToken}`,
+    });
+    return { data: { url: session.url } };
+  });
+
+  // POST /api/v1/invoices/portal/:token/receipt-url — public: presigned URL to upload a payment receipt
+  fastify.post("/invoices/portal/:token/receipt-url", async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const body = z.object({ filename: z.string().min(1).max(200), contentType: z.string() }).parse(request.body);
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(body.contentType)) return reply.status(422).send({ error: { code: "INVALID_TYPE", message: "Upload a JPG, PNG, WEBP or PDF" } });
+    const invoice = await prisma.invoice.findFirst({ where: { portalToken: token, deletedAt: null }, select: { tenantId: true } });
+    if (!invoice) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
+    const presigned = await presignUpload({ keyPrefix: `${invoice.tenantId}/receipts`, filename: body.filename, contentType: body.contentType });
+    return { data: { uploadUrl: presigned.uploadUrl, fileUrl: presigned.publicUrl } };
+  });
+
+  // POST /api/v1/invoices/portal/:token/mark-paid — public: customer claims a bank-transfer payment (awaits tradie approval)
+  fastify.post("/invoices/portal/:token/mark-paid", async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const body = z.object({
+      amountCents: z.number().int().positive().optional(),
+      reference: z.string().max(200).optional(),
+      receiptUrl: z.string().url().max(500).optional(),
+    }).parse(request.body ?? {});
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { portalToken: token, deletedAt: null },
+      include: { tenant: true },
+    });
+    if (!invoice) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
+    if (invoice.amountDueCents <= 0) return reply.status(409).send({ error: { code: "ALREADY_PAID", message: "This invoice is already paid" } });
+
+    // Avoid duplicate pending claims.
+    const pending = await prisma.payment.findFirst({ where: { invoiceId: invoice.id, status: "pending" } });
+    if (pending) return reply.status(409).send({ error: { code: "PENDING_EXISTS", message: "A payment is already awaiting confirmation for this invoice." } });
+
+    const payment = await prisma.payment.create({
+      data: {
+        tenantId: invoice.tenantId,
+        invoiceId: invoice.id,
+        customerId: invoice.customerId,
+        amountCents: Math.min(body.amountCents ?? invoice.amountDueCents, invoice.amountDueCents),
+        currency: invoice.currency,
+        paymentMethod: "bank_transfer",
+        paymentGateway: "manual",
+        gatewayTransactionId: body.reference,
+        receiptUrl: body.receiptUrl,
+        notes: body.reference ? `Bank reference: ${body.reference}` : "Customer marked as paid by bank transfer",
+        status: "pending",
+      },
+    });
+
+    notifyBusiness(invoice.tenantId, "payment_received", {
+      summary: `Your customer marked invoice <b>${invoice.invoiceNumber}</b> as paid by bank transfer. Review and approve it.`,
+      link: `/invoices/${invoice.id}`,
+    }).catch(() => {});
+
+    return reply.status(201).send({ data: { id: payment.id, status: "pending" } });
+  });
+
+  // POST /api/v1/invoices/:id/payments/:paymentId/approve — tradie confirms a pending payment
+  fastify.post("/invoices/:id/payments/:paymentId/approve", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, paymentId } = request.params as { id: string; paymentId: string };
+    const invoice = await prisma.invoice.findFirst({ where: { id, tenantId: request.tenantId, deletedAt: null }, include: { customer: true, tenant: true } });
+    if (!invoice) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
+    const payment = await prisma.payment.findFirst({ where: { id: paymentId, invoiceId: id, tenantId: request.tenantId } });
+    if (!payment) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Payment not found" } });
+    if (payment.status !== "pending") return reply.status(409).send({ error: { code: "NOT_PENDING", message: "This payment is not awaiting approval" } });
+
+    const actualAmount = Math.min(payment.amountCents, invoice.amountDueCents);
+    const newAmountDue = invoice.amountDueCents - actualAmount;
+    const newStatus = newAmountDue <= 0 ? "paid" : "partial";
+
+    await prisma.$transaction([
+      prisma.payment.update({ where: { id: paymentId }, data: { status: "completed", amountCents: actualAmount, paidAt: new Date() } }),
+      prisma.invoice.update({
+        where: { id },
+        data: { amountDueCents: newAmountDue, amountPaidCents: { increment: actualAmount }, status: newStatus, ...(newStatus === "paid" ? { lastPaymentAt: new Date() } : {}) },
+      }),
+    ]);
+
+    if (newStatus === "paid") {
+      await enqueueAutomation({ tenantId: request.tenantId, triggerType: "invoice_paid", entityType: "invoice", entityId: id });
+    }
+    await syncEntityToAccounting(request.tenantId, "payment", id);
+
+    if (invoice.customer.email) {
+      await sendBrandedEmail({
+        tenantId: request.tenantId, tenant: invoice.tenant, to: invoice.customer.email, customerId: invoice.customerId, invoiceId: invoice.id,
+        subject: `Payment received — Invoice ${invoice.invoiceNumber}`,
+        template: "payment_receipt",
+        data: { customerName: `${invoice.customer.firstName} ${invoice.customer.lastName ?? ""}`.trim(), invoiceNumber: invoice.invoiceNumber, amountCents: actualAmount, paidAt: new Date().toISOString() },
+      }).catch(() => {});
+    }
+    auditFromRequest(request, "update", "payment", paymentId).catch(() => {});
+    return { data: { approved: true, invoiceStatus: newStatus } };
+  });
+
+  // POST /api/v1/invoices/:id/payments/:paymentId/reject — tradie rejects a pending payment claim
+  fastify.post("/invoices/:id/payments/:paymentId/reject", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, paymentId } = request.params as { id: string; paymentId: string };
+    const payment = await prisma.payment.findFirst({ where: { id: paymentId, invoiceId: id, tenantId: request.tenantId, status: "pending" } });
+    if (!payment) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Pending payment not found" } });
+    await prisma.payment.update({ where: { id: paymentId }, data: { status: "failed" } });
+    auditFromRequest(request, "update", "payment", paymentId).catch(() => {});
+    return { data: { rejected: true } };
+  });
 
   // GET /api/v1/invoices/:id/pdf
   fastify.get(
