@@ -560,6 +560,49 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // POST /api/v1/jobs/:id/tasks — add a task to a job
+  fastify.post("/jobs/:id/tasks", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({ title: z.string().min(1).max(300), description: z.string().optional() }).parse(request.body);
+    const job = await prisma.job.findFirst({ where: { id, tenantId: request.tenantId, deletedAt: null } });
+    if (!job) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Job not found" } });
+    const count = await prisma.jobTask.count({ where: { jobId: id } });
+    const task = await prisma.jobTask.create({
+      data: { tenantId: request.tenantId, jobId: id, title: body.title, description: body.description, position: count, status: "pending" },
+    });
+    return reply.status(201).send({ data: task });
+  });
+
+  // PATCH /api/v1/jobs/:id/tasks/:taskId — edit / toggle a task
+  fastify.patch("/jobs/:id/tasks/:taskId", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const body = z.object({
+      title: z.string().min(1).max(300).optional(),
+      description: z.string().optional(),
+      status: z.enum(["pending", "done"]).optional(),
+    }).parse(request.body);
+    const existing = await prisma.jobTask.findFirst({ where: { id: taskId, jobId: id, tenantId: request.tenantId } });
+    if (!existing) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Task not found" } });
+    const task = await prisma.jobTask.update({
+      where: { id: taskId },
+      data: {
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.status ? { status: body.status, completedAt: body.status === "done" ? new Date() : null, completedById: body.status === "done" ? request.userId : null } : {}),
+      },
+    });
+    return { data: task };
+  });
+
+  // DELETE /api/v1/jobs/:id/tasks/:taskId
+  fastify.delete("/jobs/:id/tasks/:taskId", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const existing = await prisma.jobTask.findFirst({ where: { id: taskId, jobId: id, tenantId: request.tenantId } });
+    if (!existing) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Task not found" } });
+    await prisma.jobTask.delete({ where: { id: taskId } });
+    return { data: { deleted: true } };
+  });
+
   // POST /api/v1/jobs/:id/time-entries
   fastify.post(
     "/jobs/:id/time-entries",
