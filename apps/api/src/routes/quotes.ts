@@ -525,6 +525,22 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         link: `/jobs/${job.id}`,
       }).catch(() => {});
 
+      // Confirm to the customer — and include the quote link so they can view it any time.
+      if (quote.customer?.email) {
+        sendBrandedEmail({
+          tenantId: quote.tenantId,
+          tenant: quote.tenant,
+          to: quote.customer.email,
+          customerId: quote.customerId,
+          subject: `Thanks for approving quote ${quote.quoteNumber}`,
+          template: "custom",
+          data: {
+            businessName: quote.tenant.businessName,
+            body: `Hi ${quote.customer.firstName ?? "there"},<br/><br/>Thanks for approving quote <strong>${quote.quoteNumber}</strong> — we'll be in touch shortly to lock in a time that suits you.<br/><br/>You can view your approved quote any time here:<br/><a href="${quote.portalUrl}" style="color:#2563EB;font-weight:600;">View your quote</a>`,
+          },
+        }).catch(() => {});
+      }
+
       return { data: { approved: true, jobId: job.id, quoteId: quote.id } };
     }
   );

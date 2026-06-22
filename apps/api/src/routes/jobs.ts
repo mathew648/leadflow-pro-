@@ -802,6 +802,7 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
             issueDate: new Date(),
             dueDate,
             status: "draft",
+            portalToken: generatePortalToken(),
             createdById: request.userId,
           },
         });

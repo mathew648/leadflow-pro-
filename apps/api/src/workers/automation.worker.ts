@@ -66,7 +66,7 @@ async function buildTemplateVars(tenantId: string, entityType: string, entityId:
       vars["quote.number"] = quote.quoteNumber;
       vars["quote.quoteNumber"] = quote.quoteNumber;
       vars["quote.total"] = `$${(quote.totalCents / 100).toFixed(2)}`;
-      vars["quote.portalUrl"] = `${process.env.APP_URL ?? ""}/quotes/${quote.portalToken}`;
+      vars["quote.portalUrl"] = `${process.env.APP_URL ?? ""}/portal/quote/${quote.portalToken}`;
       vars["customer.firstName"] = quote.customer?.firstName ?? "";
       vars["customer.phone"] = quote.customer?.phone ?? "";
       vars["customer.email"] = quote.customer?.email ?? "";
