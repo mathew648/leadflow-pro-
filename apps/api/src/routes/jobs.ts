@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { enqueueAutomation, enqueueDelayed, QUEUES } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
+import { calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
+import { config } from "../config.js";
 
 const createJobSchema = z.object({
   customerId: z.string().uuid(),
@@ -601,6 +603,44 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
     if (!existing) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Task not found" } });
     await prisma.jobTask.delete({ where: { id: taskId } });
     return { data: { deleted: true } };
+  });
+
+  // POST /api/v1/jobs/:id/quote — create a draft quote from this job's items (job → quote flow)
+  fastify.post("/jobs/:id/quote", { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin", "manager"])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const job = await prisma.job.findFirst({
+      where: { id, tenantId: request.tenantId, deletedAt: null },
+      include: { materials: true },
+    });
+    if (!job) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Job not found" } });
+    if (job.quoteId) return reply.status(200).send({ data: { id: job.quoteId, existing: true } });
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: request.tenantId }, select: { gstRate: true } });
+    const gstRate = Number(tenant?.gstRate ?? 0.1);
+    const settings = await prisma.tenantSettings.findUnique({ where: { tenantId: request.tenantId } });
+
+    let raw = job.materials.map((m: any) => ({ description: m.name, quantity: Number(m.quantity), unitPriceCents: m.unitPriceCents, catalogItemId: m.catalogItemId ?? undefined }));
+    if (raw.length === 0) raw = [{ description: job.title || "Work", quantity: 1, unitPriceCents: job.quotedAmountCents || 0, catalogItemId: undefined }];
+    const items = raw.map((li, idx) => ({ ...li, gstRate, position: idx, ...calculateLineItem(li.quantity, li.unitPriceCents, gstRate, 0) }));
+    const totals = calculateTotals(items.map((li) => ({ quantity: li.quantity, unitPriceCents: li.unitPriceCents, discountPercent: 0, gstRate })));
+    const quoteNumber = `${settings?.quotePrefix ?? "QTE"}-${new Date().getFullYear()}-${String((settings?.quoteNextNumber ?? 1000) + Math.floor(Math.random() * 9000)).padStart(4, "0")}`;
+    const portalToken = generatePortalToken();
+
+    const quote = await prisma.$transaction(async (tx) => {
+      const q = await tx.quote.create({
+        data: {
+          tenantId: request.tenantId, quoteNumber, customerId: job.customerId, propertyId: job.propertyId ?? undefined,
+          title: job.title || "Quote",
+          subtotalCents: totals.subtotalCents, discountCents: totals.discountCents, gstCents: totals.gstCents, totalCents: totals.totalCents,
+          status: "draft", portalToken, portalUrl: `${config.APP_URL}/portal/quote/${portalToken}`, createdById: request.userId,
+          lineItems: { create: items.map((li) => ({ tenantId: request.tenantId, position: li.position, catalogItemId: li.catalogItemId, description: li.description, quantity: li.quantity, unitPriceCents: li.unitPriceCents, gstRate, discountPercent: 0, subtotalCents: li.subtotalCents, discountCents: li.discountCents, gstCents: li.gstCents, totalCents: li.totalCents })) },
+        },
+      });
+      await tx.job.update({ where: { id }, data: { quoteId: q.id } });
+      if (settings) await tx.tenantSettings.update({ where: { tenantId: request.tenantId }, data: { quoteNextNumber: { increment: 1 } } });
+      return q;
+    });
+    return reply.status(201).send({ data: quote });
   });
 
   // POST /api/v1/jobs/:id/time-entries

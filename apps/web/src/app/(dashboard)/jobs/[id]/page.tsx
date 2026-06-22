@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Clock, MapPin, User, Wrench, CheckSquare, Package,
   Camera, Play, CheckCircle, Receipt, ChevronRight, Plus, Trash2,
-  AlertTriangle, Phone, Calendar,
+  AlertTriangle, Phone, Calendar, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { Topbar } from "@/components/layout/topbar";
@@ -123,6 +123,15 @@ export default function JobDetailPage() {
     mutationFn: (taskId: string) => api.delete(`/jobs/${id}/tasks/${taskId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["job", id] }),
   });
+  const createQuoteMutation = useMutation({
+    mutationFn: () => api.post<any>(`/jobs/${id}/quote`, {}),
+    onSuccess: (res: any) => {
+      const qid = res?.id ?? res?.data?.id;
+      toast({ title: res?.existing ? "Quote already exists for this job" : "Quote created from job" });
+      if (qid) router.push(`/quotes/${qid}`);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   const invoiceMutation = useMutation({
     mutationFn: () => api.post(`/jobs/${id}/invoice`, {}),
@@ -192,6 +201,15 @@ export default function JobDetailPage() {
               </div>
 
               <div className="flex gap-2 flex-wrap">
+                {!job.quoteId ? (
+                  <Button size="sm" variant="outline" onClick={() => createQuoteMutation.mutate()} disabled={createQuoteMutation.isPending}>
+                    <FileText className="w-4 h-4 mr-1.5" /> Create Quote
+                  </Button>
+                ) : (
+                  <Link href={`/quotes/${job.quoteId}`}>
+                    <Button size="sm" variant="outline"><FileText className="w-4 h-4 mr-1.5" /> View Quote</Button>
+                  </Link>
+                )}
                 {canStart && (
                   <Button size="sm" onClick={() => startMutation.mutate()} disabled={startMutation.isPending}>
                     <Play className="w-4 h-4 mr-1.5" /> Start Job
