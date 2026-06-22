@@ -147,8 +147,8 @@ export default function CatalogPage() {
     setForm({ ...BLANK });
   }
 
-  const items: any[] = data?.data ?? [];
-  const categories: any[] = categoriesData?.data ?? [];
+  const items: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
+  const categories: any[] = (Array.isArray(categoriesData) ? categoriesData : (categoriesData?.data ?? []));
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (

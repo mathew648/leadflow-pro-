@@ -38,7 +38,7 @@ export default function QuotesPage() {
     ),
   });
 
-  const quotes: any[] = data?.data ?? [];
+  const quotes: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
 
   return (
     <div>

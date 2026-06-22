@@ -75,7 +75,7 @@ export default function CustomersPage() {
     e.target.value = "";
   }
 
-  const customers: any[] = data?.data ?? [];
+  const customers: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
   const canSubmit = form.firstName && form.lastName && form.phone.length >= 7;
 
   return (

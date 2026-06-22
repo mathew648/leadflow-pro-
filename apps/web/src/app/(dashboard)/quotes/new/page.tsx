@@ -93,7 +93,7 @@ export default function NewQuotePage() {
   const addLine = () => setLineItems((prev) => [...prev, { ...BLANK_LINE, position: prev.length }]);
   const removeLine = (i: number) => setLineItems((prev) => prev.filter((_, idx) => idx !== i));
 
-  const customers: any[] = customersData?.data ?? [];
+  const customers: any[] = (Array.isArray(customersData) ? customersData : (customersData?.data ?? []));
   const totals = calcTotals(lineItems);
   const depositCents = Math.round(totals.total * (depositPercent / 100));
 

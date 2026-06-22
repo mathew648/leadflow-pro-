@@ -112,7 +112,7 @@ function BusinessTab() {
     queryKey: ["tenant"],
     queryFn: () => api.get<any>("/tenant"),
   });
-  const tenant = tenantData?.data;
+  const tenant = tenantData?.data ?? tenantData;
 
   const { register, handleSubmit, formState: { isSubmitting } } = useForm({
     values: tenant ? {
@@ -250,7 +250,7 @@ function DocumentsTab() {
     queryKey: ["tenant"],
     queryFn: () => api.get<any>("/tenant"),
   });
-  const settings = tenantData?.data?.settings;
+  const settings = (tenantData?.data ?? tenantData)?.settings;
 
   const { register, handleSubmit, formState: { isSubmitting } } = useForm({
     values: settings ? {
@@ -404,7 +404,7 @@ function PipelineTab() {
     queryKey: ["pipeline-stages"],
     queryFn: () => api.get<any>("/tenant/pipeline-stages"),
   });
-  const stages: any[] = data?.data ?? [];
+  const stages: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
 
   const createMutation = useMutation({
     mutationFn: () => api.post("/tenant/pipeline-stages", {
@@ -475,7 +475,7 @@ function TeamTab() {
     queryKey: ["tenant-users"],
     queryFn: () => api.get<any>("/tenant/users"),
   });
-  const users: any[] = usersData?.data ?? [];
+  const users: any[] = (Array.isArray(usersData) ? usersData : (usersData?.data ?? []));
 
   const inviteMutation = useMutation({
     mutationFn: () => api.post<any>("/tenant/users/invite", form),
