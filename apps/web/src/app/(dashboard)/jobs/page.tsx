@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Briefcase, Search, MapPin, Clock, User } from "lucide-react";
@@ -54,6 +54,13 @@ export default function JobsPage() {
   const [status, setStatus] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ ...BLANK });
+
+  // Opened from a customer's "New Job" button (/jobs?newFor=<customerId>) — auto-open
+  // the create modal with that customer pre-selected.
+  useEffect(() => {
+    const newFor = new URLSearchParams(window.location.search).get("newFor");
+    if (newFor) { setForm({ ...BLANK, customerId: newFor }); setAddOpen(true); }
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["jobs", search, status],
