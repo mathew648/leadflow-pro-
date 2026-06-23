@@ -76,7 +76,7 @@ export default function CustomersPage() {
   }
 
   const customers: any[] = (Array.isArray(data) ? data : (data?.data ?? []));
-  const canSubmit = form.firstName && form.lastName && form.phone.length >= 7;
+  const canSubmit = form.firstName && form.phone.length >= 7;
 
   return (
     <div>
@@ -215,7 +215,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Last Name *</label>
+                  <label className="text-xs font-medium text-muted-foreground">Last Name</label>
                   <input
                     type="text"
                     placeholder="Smith"

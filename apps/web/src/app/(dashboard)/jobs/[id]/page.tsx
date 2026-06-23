@@ -528,7 +528,9 @@ export default function JobDetailPage() {
                   </div>
                   <div className="text-right text-sm flex-shrink-0">
                     <p>{m.quantity} {m.unit ?? "ea"}</p>
-                    {m.unitCostCents > 0 && <p className="text-muted-foreground">{formatCurrency(m.unitCostCents * m.quantity)}</p>}
+                    {m.unitCostCents > 0
+                      ? <p className="text-muted-foreground">{formatCurrency(m.unitCostCents * m.quantity)} cost</p>
+                      : <p className="text-amber-600 text-xs font-medium">⚠ cost missing</p>}
                   </div>
                 </div>
               ))}
@@ -681,6 +683,11 @@ function ProfitCard({ job, jobId }: { job: any; jobId: string }) {
             <p className={cn("text-[10px] font-medium", profitColor)}>{margin}% margin</p>
           </div>
         </div>
+        {!editing && (job.materials ?? []).some((m: any) => !m.unitCostCents) && (
+          <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            ⚠ {(job.materials ?? []).filter((m: any) => !m.unitCostCents).length} item(s) have no cost entered — your real margin is likely lower. Add costs to the materials for an accurate profit.
+          </p>
+        )}
         {editing ? (
           <div className="mt-3 flex gap-2 justify-end">
             <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>

@@ -21,7 +21,7 @@ const CUSTOMER_ALIASES: Record<string, string[]> = {
 
 const createCustomerSchema = z.object({
   firstName: z.string().min(1).max(100),
-  lastName: z.string().min(1).max(100),
+  lastName: z.string().max(100).optional(),
   companyName: z.string().max(200).optional(),
   email: z.string().email().optional(),
   phone: z.string().min(7).max(20),
@@ -144,7 +144,7 @@ export default async function customersRoutes(fastify: FastifyInstance) {
         data: {
           tenantId,
           firstName: body.firstName,
-          lastName: body.lastName,
+          lastName: body.lastName ?? "",
           companyName: body.companyName,
           email: body.email?.toLowerCase(),
           phone,

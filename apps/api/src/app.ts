@@ -65,6 +65,18 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // Register error handler IMMEDIATELY after instance creation, before any plugins,
   // so all child scopes inherit it
   fastify.setErrorHandler((error, request, reply) => {
+    // Turn validation issues into a readable, field-specific message so the client shows
+    // "Phone: Required" instead of an opaque "Request validation failed".
+    const describeValidation = (issues: any): string => {
+      if (!Array.isArray(issues) || issues.length === 0) return "Please check the form and try again.";
+      return issues.slice(0, 3).map((i: any) => {
+        const raw = (Array.isArray(i.path) && i.path.length ? i.path[i.path.length - 1]
+          : (i.instancePath ? String(i.instancePath).split("/").filter(Boolean).pop() : null))
+          ?? i.params?.missingProperty ?? "Field";
+        const label = String(raw).replace(/([A-Z])/g, " $1").replace(/^./, (c: string) => c.toUpperCase()).trim();
+        return `${label}: ${i.message}`;
+      }).join("; ");
+    };
     // Rate-limit errors can surface in a few shapes — always return a clean 429
     // (never a 500) so the client shows a clear "slow down" message, not "internal error".
     const e = error as any;
@@ -81,13 +93,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       error.name === "ZodError" ||
       ((error as any).issues != null && Array.isArray((error as any).issues))
     ) {
+      const issues = (error as any).issues ?? (error as any).errors ?? [];
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: "Request validation failed", details: (error as any).issues ?? (error as any).errors ?? [] },
+        error: { code: "VALIDATION_ERROR", message: describeValidation(issues), details: issues },
       });
     }
     if (error.validation) {
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: "Request validation failed", details: error.validation },
+        error: { code: "VALIDATION_ERROR", message: describeValidation(error.validation), details: error.validation },
       });
     }
     const statusCode = error.statusCode ?? 500;
