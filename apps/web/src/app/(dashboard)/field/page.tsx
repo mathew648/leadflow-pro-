@@ -81,13 +81,16 @@ export default function FieldHomePage() {
   const user = useAuthStore((s) => s.user);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
 
+  // Technicians see only the jobs assigned to them; owners/admins/managers (incl. solo
+  // traders, who rarely "assign" jobs to themselves) see all active jobs.
+  const isTech = user?.role === "technician";
   const { data, isLoading } = useQuery({
-    queryKey: ["field", "my-jobs", user?.id],
-    queryFn: () => api.get<FieldJob[]>(`/jobs?userId=${user!.id}&limit=100`),
+    queryKey: ["field", "my-jobs", user?.id, user?.role],
+    queryFn: () => api.get<FieldJob[]>(isTech ? `/jobs?userId=${user!.id}&limit=100` : `/jobs?limit=100`),
     enabled: !!user?.id,
   });
 
-  const jobs = data ?? [];
+  const jobs = Array.isArray(data) ? data : ((data as any)?.data ?? []);
   const active = jobs.filter((j) => !["completed", "cancelled"].includes(j.status));
   const today = active.filter((j) => isToday(j.scheduledStart));
   const upcoming = active.filter((j) => !isToday(j.scheduledStart));
