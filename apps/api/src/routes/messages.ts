@@ -49,13 +49,13 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
         FROM customers c
         JOIN LATERAL (
           SELECT * FROM messages
-          WHERE tenant_id = ${request.tenantId}
+          WHERE tenant_id = ${request.tenantId}::uuid
             AND customer_id = c.id
           ORDER BY created_at DESC
           LIMIT 1
         ) m ON true
-        LEFT JOIN messages m2 ON m2.customer_id = c.id AND m2.tenant_id = ${request.tenantId}
-        WHERE c.tenant_id = ${request.tenantId}
+        LEFT JOIN messages m2 ON m2.customer_id = c.id AND m2.tenant_id = ${request.tenantId}::uuid
+        WHERE c.tenant_id = ${request.tenantId}::uuid
           AND c.deleted_at IS NULL
         GROUP BY c.id, m.body, m.created_at, m.channel
         ORDER BY m.created_at DESC
