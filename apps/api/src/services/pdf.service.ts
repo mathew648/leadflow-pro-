@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "../lib/prisma.js";
 import { config } from "../config.js";
@@ -27,10 +28,15 @@ async function uploadPdf(key: string, buffer: Buffer): Promise<string> {
 }
 
 async function renderHtml(html: string): Promise<Buffer> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
-  });
+  // In production (Render's native runtime has no system Chromium) use @sparticuz/chromium,
+  // which bundles a Chromium build + the shared libraries it needs. Locally, fall back to
+  // Puppeteer's own bundled Chromium.
+  const isProd = process.env.NODE_ENV === "production";
+  const browser = await puppeteer.launch(
+    isProd
+      ? { args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"], executablePath: await chromium.executablePath(), headless: true }
+      : { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"] }
+  );
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
