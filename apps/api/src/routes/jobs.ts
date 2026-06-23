@@ -288,14 +288,17 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
 
       // Auto-computed job costing — pulls materials, time entries, and the quote/invoice
       // so a tradie sees profit without re-entering anything.
-      const materialsFromItems = job.materials.reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
+      // Split job items by type so labour/subcontractor lines count as labour, not materials.
+      const isLabourType = (m: any) => ["labour", "subcontract"].includes(m.lineType ?? "material");
+      const materialsFromItems = job.materials.filter((m: any) => !isLabourType(m)).reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
+      const labourFromItems = job.materials.filter(isLabourType).reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
       const labourFromEntries = job.timeEntries.reduce((s: number, t: any) => {
         if (t.totalCents != null) return s + t.totalCents;
         if (t.durationMinutes && t.hourlyRateCents) return s + Math.round((t.durationMinutes / 60) * t.hourlyRateCents);
         return s;
       }, 0);
       const materialsCostCents = materialsFromItems || job.actualMaterialsCents || 0;
-      const labourCostCents = labourFromEntries || job.actualLabourCents || 0;
+      const labourCostCents = (labourFromEntries + labourFromItems) || job.actualLabourCents || 0;
       let revenueCents = job.quotedAmountCents || job.quote?.totalCents || 0;
       if (job.invoiceId) {
         const inv = await prisma.invoice.findUnique({ where: { id: job.invoiceId }, select: { totalCents: true } });
@@ -305,7 +308,7 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
       const marginPct = revenueCents > 0 ? Math.round((profitCents / revenueCents) * 1000) / 10 : 0;
       const costing = {
         revenueCents, materialsCostCents, labourCostCents, profitCents, marginPct,
-        materialsAuto: materialsFromItems > 0, labourAuto: labourFromEntries > 0,
+        materialsAuto: materialsFromItems > 0, labourAuto: (labourFromEntries + labourFromItems) > 0,
         revenueSource: job.invoiceId ? "invoice" : job.quotedAmountCents ? "quoted" : "quote",
       };
 

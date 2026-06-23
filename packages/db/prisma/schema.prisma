@@ -813,6 +813,7 @@ model QuoteLineItem {
   isSelected    Boolean @default(true) @map("is_selected")
 
   catalogItemId String? @db.Uuid @map("catalog_item_id")
+  lineType      String  @default("material") @db.VarChar(20) @map("line_type")
   description   String  @db.VarChar(500)
   notes         String?
   unit          String? @db.VarChar(30)
@@ -1008,6 +1009,7 @@ model JobMaterial {
   tenantId    String  @db.Uuid @map("tenant_id")
   jobId       String  @db.Uuid @map("job_id")
   catalogItemId String? @db.Uuid @map("catalog_item_id")
+  lineType      String  @default("material") @db.VarChar(20) @map("line_type")
 
   name            String  @db.VarChar(200)
   code            String? @db.VarChar(50)

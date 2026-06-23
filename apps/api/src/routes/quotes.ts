@@ -11,6 +11,7 @@ import { notifyBusiness } from "../lib/notify.js";
 
 const lineItemSchema = z.object({
   catalogItemId: z.string().uuid().optional(),
+  lineType: z.enum(["labour", "material", "equipment", "subcontract", "other"]).default("material"),
   description: z.string().min(1).max(500),
   notes: z.string().optional(),
   unit: z.string().optional(),
@@ -164,6 +165,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
             isOptional: li.isOptional,
             isSelected: li.isSelected,
             catalogItemId: li.catalogItemId,
+            lineType: li.lineType ?? "material",
             description: li.description,
             notes: li.notes,
             unit: li.unit,
@@ -286,7 +288,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
             data: lineItemCalcs.map((li) => ({
               tenantId: request.tenantId, quoteId: id,
               position: li.position, section: li.section, isOptional: li.isOptional, isSelected: li.isSelected,
-              catalogItemId: li.catalogItemId, description: li.description, notes: li.notes, unit: li.unit,
+              catalogItemId: li.catalogItemId, lineType: li.lineType ?? "material", description: li.description, notes: li.notes, unit: li.unit,
               quantity: li.quantity, unitPriceCents: li.unitPriceCents, discountPercent: li.discountPercent,
               discountCents: li.discountCents, subtotalCents: li.subtotalCents, gstRate: li.gstRate,
               gstCents: li.gstCents, totalCents: li.totalCents, costPriceCents: li.costPriceCents,
@@ -519,6 +521,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
               tenantId: quote.tenantId,
               jobId: job!.id,
               catalogItemId: li.catalogItemId ?? undefined,
+              lineType: (li as any).lineType ?? "material",
               name: li.description,
               quantity: qty,
               unitCostCents: unitCost,

@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 interface LineItem {
   id?: string;
   catalogItemId?: string;
+  lineType: string;
   description: string;
   notes: string;
   unit: string;
@@ -50,10 +51,18 @@ function calcTotals(items: LineItem[]) {
 }
 
 const BLANK_LINE: LineItem = {
-  description: "", notes: "", unit: "ea", quantity: 1, unitPriceCents: 0,
+  lineType: "material", description: "", notes: "", unit: "ea", quantity: 1, unitPriceCents: 0,
   discountPercent: 0, gstRate: 0.1, isOptional: false, isSelected: true,
   position: 0, section: "", costPriceCents: 0,
 };
+
+const LINE_TYPES = [
+  { v: "material", label: "Material" },
+  { v: "labour", label: "Labour" },
+  { v: "subcontract", label: "Subcontractor" },
+  { v: "equipment", label: "Equipment" },
+  { v: "other", label: "Other" },
+];
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -94,6 +103,7 @@ export default function QuoteDetailPage() {
         section: li.section ?? "",
         costPriceCents: li.costPriceCents ?? 0,
         catalogItemId: li.catalogItemId ?? undefined,
+        lineType: li.lineType ?? "material",
       })));
       setMeta({
         title: q.title,
@@ -171,6 +181,7 @@ export default function QuoteDetailPage() {
           costPriceCents: match.unitCostCents ?? match.costPriceCents ?? li.costPriceCents,
           gstRate: match.gstRate ?? li.gstRate,
           catalogItemId: match.id,
+          lineType: match.type ?? li.lineType ?? "material",
         };
       }
       return { ...li, description: value, catalogItemId: undefined };
@@ -377,7 +388,7 @@ export default function QuoteDetailPage() {
                 const c = calcLine(li);
                 return (
                   <div key={i} className="grid grid-cols-12 gap-2 items-start py-1">
-                    <div className="col-span-12 lg:col-span-4">
+                    <div className="col-span-12 lg:col-span-4 space-y-1">
                       <input
                         type="text"
                         list="pricebook-list"
@@ -387,6 +398,15 @@ export default function QuoteDetailPage() {
                         disabled={isLocked}
                         className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       />
+                      <select
+                        value={li.lineType}
+                        onChange={(e) => updateLine(i, "lineType", e.target.value)}
+                        disabled={isLocked}
+                        aria-label="Item type"
+                        className="w-full px-2 py-1 text-[11px] border rounded bg-gray-50 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {LINE_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+                      </select>
                     </div>
                     <div className="col-span-4 lg:col-span-1">
                       <input

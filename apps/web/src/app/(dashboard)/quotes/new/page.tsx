@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
 interface LineItem {
+  lineType: string;
   description: string;
   unit: string;
   quantity: number;
@@ -42,10 +43,18 @@ function calcTotals(items: LineItem[]) {
 }
 
 const BLANK_LINE: LineItem = {
-  description: "", unit: "ea", quantity: 1, unitPriceCents: 0,
+  lineType: "material", description: "", unit: "ea", quantity: 1, unitPriceCents: 0,
   discountPercent: 0, gstRate: 0.1, isOptional: false, isSelected: true,
   position: 0, section: "", costPriceCents: 0,
 };
+
+const LINE_TYPES = [
+  { v: "material", label: "Material" },
+  { v: "labour", label: "Labour" },
+  { v: "subcontract", label: "Subcontractor" },
+  { v: "equipment", label: "Equipment" },
+  { v: "other", label: "Other" },
+];
 
 export default function NewQuotePage() {
   const router = useRouter();
@@ -78,6 +87,7 @@ export default function NewQuotePage() {
     if (!it) return;
     const line: LineItem = {
       ...BLANK_LINE,
+      lineType: it.type ?? "material",
       description: it.name ?? it.description ?? "",
       unit: it.unit ?? "ea",
       quantity: 1,
@@ -229,7 +239,7 @@ export default function NewQuotePage() {
                 const c = calcLine(li);
                 return (
                   <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-12 lg:col-span-4">
+                    <div className="col-span-12 lg:col-span-4 space-y-1">
                       <input
                         type="text"
                         placeholder="Description"
@@ -237,6 +247,14 @@ export default function NewQuotePage() {
                         onChange={(e) => updateLine(i, "description", e.target.value)}
                         className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       />
+                      <select
+                        value={li.lineType}
+                        onChange={(e) => updateLine(i, "lineType", e.target.value)}
+                        aria-label="Item type"
+                        className="w-full px-2 py-1 text-[11px] border rounded bg-gray-50 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {LINE_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+                      </select>
                     </div>
                     <div className="col-span-4 lg:col-span-1">
                       <input
