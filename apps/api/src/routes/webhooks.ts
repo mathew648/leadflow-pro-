@@ -22,13 +22,15 @@ function verifyMeta(req: any, secret: string): boolean {
   }
 }
 
-function verifyStripe(payload: string, sig: string, secret: string): Stripe.Event | null {
-  try {
-    const stripe = new Stripe(config.STRIPE_SECRET_KEY ?? "");
-    return stripe.webhooks.constructEvent(payload, sig, secret);
-  } catch {
-    return null;
+// Try each configured secret — the platform endpoint and the Connect (connected-accounts)
+// endpoint have different signing secrets, and connected-account charge events arrive on the latter.
+function verifyStripe(payload: string, sig: string, secrets: (string | undefined)[]): Stripe.Event | null {
+  const stripe = new Stripe(config.STRIPE_SECRET_KEY ?? "");
+  for (const secret of secrets) {
+    if (!secret) continue;
+    try { return stripe.webhooks.constructEvent(payload, sig, secret); } catch { /* try the next secret */ }
   }
+  return null;
 }
 
 // Verify a Resend (Svix-signed) webhook. Signed content is `${id}.${timestamp}.${rawBody}`,
@@ -175,7 +177,7 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
         return reply.status(400).send("Missing signature or body");
       }
 
-      const event = verifyStripe(rawBody, sig, config.STRIPE_WEBHOOK_SECRET ?? "");
+      const event = verifyStripe(rawBody, sig, [config.STRIPE_WEBHOOK_SECRET, config.STRIPE_CONNECT_WEBHOOK_SECRET]);
       if (!event) {
         return reply.status(400).send("Invalid signature");
       }
