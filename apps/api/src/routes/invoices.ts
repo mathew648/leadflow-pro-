@@ -420,7 +420,7 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
           customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
           lineItems: { orderBy: { position: "asc" } },
           payments: { where: { status: { in: ["completed", "pending"] } }, select: { amountCents: true, paidAt: true, paymentGateway: true, paymentMethod: true, status: true } },
-          tenant: { select: { businessName: true, logoUrl: true, phone: true, email: true, abn: true, primaryColor: true } },
+          tenant: { select: { businessName: true, logoUrl: true, phone: true, email: true, abn: true, primaryColor: true, stripeAccountId: true } },
         },
       });
 
@@ -433,9 +433,11 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         await prisma.invoice.update({ where: { id: invoice.id }, data: { firstViewedAt: new Date() } });
       }
 
-      // Strip internal data
+      // Card payments are only offered if the tradie has connected their own Stripe account.
+      const cardEnabled = !!invoice.tenant.stripeAccountId;
+      const { stripeAccountId: _acct, ...tenant } = invoice.tenant;
       const { portalToken: _, ...safeInvoice } = invoice;
-      return { data: safeInvoice };
+      return { data: { ...safeInvoice, tenant, cardEnabled } };
     }
   );
 
@@ -448,7 +450,9 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
     });
     if (!invoice) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
     if (invoice.amountDueCents <= 0) return reply.status(409).send({ error: { code: "ALREADY_PAID", message: "This invoice is already paid" } });
-    if (!config.STRIPE_SECRET_KEY) return reply.status(503).send({ error: { code: "NO_GATEWAY", message: "Online card payments are not available. Please pay by bank transfer." } });
+    // Charge on the tradie's OWN connected Stripe account (direct charge — funds go 100% to them).
+    const acct = invoice.tenant.stripeAccountId;
+    if (!config.STRIPE_SECRET_KEY || !acct) return reply.status(503).send({ error: { code: "NO_GATEWAY", message: "This business hasn't enabled card payments yet. Please pay by bank transfer." } });
 
     const stripe = new Stripe(config.STRIPE_SECRET_KEY);
     const session = await stripe.checkout.sessions.create({
@@ -468,7 +472,7 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
       payment_intent_data: { metadata: { tenantId: invoice.tenantId, invoiceId: invoice.id } },
       success_url: `${config.APP_URL}/pay/${invoice.portalToken}?paid=1`,
       cancel_url: `${config.APP_URL}/pay/${invoice.portalToken}`,
-    });
+    }, { stripeAccount: acct });
     return { data: { url: session.url } };
   });
 

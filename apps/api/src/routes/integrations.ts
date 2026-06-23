@@ -483,6 +483,10 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
       }
 
+      const acct = invoice.tenant.stripeAccountId;
+      if (!acct) {
+        return reply.status(409).send({ error: { code: "NO_STRIPE", message: "Connect your Stripe account first (Settings → Integrations) to take card payments." } });
+      }
       const stripe = new Stripe(config.STRIPE_SECRET_KEY ?? "");
 
       const session = await stripe.checkout.sessions.create({
@@ -504,7 +508,7 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
         payment_intent_data: { metadata: { tenantId: request.tenantId, invoiceId: invoice.id } },
         success_url: `${config.APP_URL}/pay/${invoice.portalToken}?paid=1`,
         cancel_url: `${config.APP_URL}/pay/${invoice.portalToken}`,
-      });
+      }, { stripeAccount: acct });
 
       return { data: { url: session.url, sessionId: session.id } };
     }

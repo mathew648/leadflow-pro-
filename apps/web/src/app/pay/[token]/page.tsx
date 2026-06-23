@@ -288,21 +288,25 @@ export default function InvoicePayPortal() {
 
             {payError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{payError}</p>}
 
-            {/* Pay by card */}
-            <button
-              type="button"
-              onClick={payByCard}
-              disabled={cardLoading}
-              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-white font-semibold text-sm disabled:opacity-60"
-              style={{ background: brandColor }}
-            >
-              {cardLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-              Pay securely by card
-            </button>
+            {/* Pay by card — only when the business has connected their own Stripe */}
+            {invoice.cardEnabled && (
+              <>
+                <button
+                  type="button"
+                  onClick={payByCard}
+                  disabled={cardLoading}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-white font-semibold text-sm disabled:opacity-60"
+                  style={{ background: brandColor }}
+                >
+                  {cardLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  Pay securely by card
+                </button>
 
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <div className="flex-1 h-px bg-gray-200" /> or <div className="flex-1 h-px bg-gray-200" />
-            </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <div className="flex-1 h-px bg-gray-200" /> or <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              </>
+            )}
 
             {/* Pay by bank transfer */}
             {!bankOpen ? (
