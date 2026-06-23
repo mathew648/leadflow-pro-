@@ -93,7 +93,14 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
     "/quotes",
     { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin", "manager", "sales"])] },
     async (request, reply) => {
-      const body = createQuoteSchema.parse(request.body);
+      // Drop blank/half-typed rows before validating so a stray empty line never blocks the save.
+      const rawBody: any = request.body ?? {};
+      if (Array.isArray(rawBody.lineItems)) {
+        rawBody.lineItems = rawBody.lineItems.filter(
+          (li: any) => li && typeof li.description === "string" && li.description.trim().length > 0
+        );
+      }
+      const body = createQuoteSchema.parse(rawBody);
       const { tenantId, userId } = request;
 
       // Verify customer belongs to tenant

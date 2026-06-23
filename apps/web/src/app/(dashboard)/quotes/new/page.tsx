@@ -112,7 +112,7 @@ export default function NewQuotePage() {
         depositPercent,
         paymentTermsDays,
         validUntil: validUntil ? new Date(validUntil).toISOString() : undefined,
-        lineItems: lineItems.map((li, i) => ({ ...li, position: i })),
+        lineItems: lineItems.filter((li) => (li.description ?? "").trim().length > 0).map((li, i) => ({ ...li, position: i })),
       }),
     onSuccess: (res: any) => {
       toast({ title: "Quote created!" });
