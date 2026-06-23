@@ -90,7 +90,7 @@ export default function FieldHomePage() {
     enabled: !!user?.id,
   });
 
-  const jobs = Array.isArray(data) ? data : ((data as any)?.data ?? []);
+  const jobs: FieldJob[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
   const active = jobs.filter((j) => !["completed", "cancelled"].includes(j.status));
   const today = active.filter((j) => isToday(j.scheduledStart));
   const upcoming = active.filter((j) => !isToday(j.scheduledStart));
