@@ -523,13 +523,15 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         return { updatedQuote, job };
       });
 
-      await enqueueAutomation({
+      // Fire-and-forget — a queue hiccup must NOT 500 the approval after it has committed
+      // (that left the portal showing an error until a manual refresh).
+      enqueueAutomation({
         tenantId: quote.tenantId,
         triggerType: "quote_approved",
         entityType: "quote",
         entityId: quote.id,
         entityData: { jobId: job.id },
-      });
+      }).catch(() => {});
 
       notifyBusiness(quote.tenantId, "quote_approved", {
         summary: `Quote <b>${quote.quoteNumber}</b> was approved by your customer. A job has been created.`,
@@ -575,12 +577,12 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         data: { status: "rejected", rejectedAt: new Date(), rejectionReason: body.reason },
       });
 
-      await enqueueAutomation({
+      enqueueAutomation({
         tenantId: quote.tenantId,
         triggerType: "quote_rejected",
         entityType: "quote",
         entityId: quote.id,
-      });
+      }).catch(() => {});
 
       return { data: { rejected: true } };
     }

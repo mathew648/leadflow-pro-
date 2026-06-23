@@ -113,7 +113,7 @@ export default function JobDetailPage() {
   const updateMaterialMutation = useMutation({
     mutationFn: ({ materialId, unitCostCents }: { materialId: string; unitCostCents: number }) =>
       api.patch(`/jobs/${id}/materials/${materialId}`, { unitCostCents }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["job", id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["job", id] }); toast({ title: "Cost saved" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
   const deleteMaterialMutation = useMutation({
@@ -560,6 +560,7 @@ export default function JobDetailPage() {
                         type="number" min="0" step="0.01" placeholder="0.00"
                         aria-label={`Unit cost for ${m.name}`}
                         defaultValue={m.unitCostCents ? (m.unitCostCents / 100).toFixed(2) : ""}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                         onBlur={(e) => {
                           const c = Math.round((Number(e.target.value) || 0) * 100);
                           if (c !== m.unitCostCents) updateMaterialMutation.mutate({ materialId: m.id, unitCostCents: c });
