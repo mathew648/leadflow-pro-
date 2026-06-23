@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
 import { nextQuoteNumber, nextJobNumber } from "../lib/numbering.js";
+import { syncQuoteLineItemsToJobMaterials } from "../lib/job-sync.js";
 import { enqueueEmail, enqueuePdf, enqueueAutomation } from "../lib/queue.js";
 import { config } from "../config.js";
 import { auditFromRequest } from "../lib/audit.js";
@@ -514,31 +515,8 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // Sync the approved quote's line items into the job's materials, so the job overview
-        // shows what was quoted. Cost stays 0 (empty) for items not from the price book.
-        const existingMats = await tx.jobMaterial.findMany({ where: { jobId: job.id } });
-        const haveKey = new Set(existingMats.map((m) => (m.catalogItemId ?? m.name.toLowerCase())));
-        const newMats = quote.lineItems
-          .filter((li) => !haveKey.has(li.catalogItemId ?? li.description.toLowerCase()))
-          .map((li) => {
-            const qty = Number(li.quantity);
-            const unitCost = li.costPriceCents ?? 0;
-            const unitPrice = li.unitPriceCents;
-            return {
-              tenantId: quote.tenantId,
-              jobId: job!.id,
-              catalogItemId: li.catalogItemId ?? undefined,
-              lineType: (li as any).lineType ?? "material",
-              name: li.description,
-              quantity: qty,
-              unitCostCents: unitCost,
-              unitPriceCents: unitPrice,
-              totalCostCents: Math.round(unitCost * qty),
-              totalPriceCents: Math.round(unitPrice * qty),
-              addedFrom: "quote",
-            };
-          });
-        if (newMats.length > 0) await tx.jobMaterial.createMany({ data: newMats });
+        // Mirror the approved quote's line items onto the job as materials (for the overview/costing).
+        await syncQuoteLineItemsToJobMaterials(tx, quote, job.id);
 
         await tx.quote.update({ where: { id: quote.id }, data: { convertedToJobId: job.id } });
 

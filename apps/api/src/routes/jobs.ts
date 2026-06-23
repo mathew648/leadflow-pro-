@@ -5,6 +5,7 @@ import { enqueueAutomation, enqueueDelayed, QUEUES } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
 import { nextJobNumber, nextQuoteNumber, nextInvoiceNumber } from "../lib/numbering.js";
+import { syncQuoteLineItemsToJobMaterials } from "../lib/job-sync.js";
 import { config } from "../config.js";
 
 const createJobSchema = z.object({
@@ -851,6 +852,10 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
             })),
           });
         }
+
+        // Mirror the quote's line items onto the job as materials (if not already there), so the
+        // job overview/costing reflects what was quoted even when the quote wasn't portal-approved.
+        if (job.quote) await syncQuoteLineItemsToJobMaterials(tx, job.quote as any, id);
 
         await tx.job.update({ where: { id }, data: { invoiceId: invoice.id, status: "invoiced" } });
 
