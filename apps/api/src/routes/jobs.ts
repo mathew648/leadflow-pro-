@@ -286,7 +286,7 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
           },
           materials: { orderBy: { createdAt: "asc" } },
           photos: { orderBy: { takenAt: "asc" } },
-          quote: { select: { id: true, quoteNumber: true, totalCents: true } },
+          quote: { select: { id: true, quoteNumber: true, totalCents: true, status: true } },
         },
       });
 

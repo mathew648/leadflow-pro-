@@ -128,7 +128,7 @@ export default function JobDetailPage() {
     onSuccess: (res: any) => {
       const qid = res?.id ?? res?.data?.id;
       toast({ title: res?.existing ? "Quote already exists for this job" : "Quote created from job" });
-      if (qid) router.push(`/quotes/${qid}`);
+      if (qid) router.push(`/quotes/${qid}?jobId=${id}`);
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -172,7 +172,10 @@ export default function JobDetailPage() {
   const nextStatus = JOB_STATUS_FLOW[job.status];
   const isCompleted = job.status === "completed";
   const canComplete = job.status === "in_progress";
-  const canStart = job.status === "dispatched" || job.status === "scheduled";
+  const quoteStatus = job.quote?.status as string | undefined;
+  const quoteApproved = quoteStatus === "approved";
+  const canStart = job.status === "dispatched" || job.status === "scheduled" ||
+    (quoteApproved && !["in_progress", "completed", "cancelled"].includes(job.status));
 
   return (
     <div>
@@ -206,8 +209,14 @@ export default function JobDetailPage() {
                     <FileText className="w-4 h-4 mr-1.5" /> Create Quote
                   </Button>
                 ) : (
-                  <Link href={`/quotes/${job.quoteId}`}>
-                    <Button size="sm" variant="outline"><FileText className="w-4 h-4 mr-1.5" /> View Quote</Button>
+                  <Link href={`/quotes/${job.quoteId}?jobId=${id}`}>
+                    <Button size="sm" variant="outline">
+                      <FileText className="w-4 h-4 mr-1.5" />
+                      {quoteStatus === "approved" ? "Quote approved" :
+                        quoteStatus === "rejected" ? "Quote declined" :
+                        (quoteStatus === "sent" || quoteStatus === "viewed") ? "Quote — awaiting approval" :
+                        "View Quote"}
+                    </Button>
                   </Link>
                 )}
                 {canStart && (

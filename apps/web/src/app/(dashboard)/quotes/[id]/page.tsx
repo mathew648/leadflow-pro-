@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Plus, Trash2, Send, Copy, Briefcase, ChevronRight,
@@ -59,6 +59,7 @@ export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
+  const jobId = useSearchParams().get("jobId"); // set when the quote was opened from a job
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [dirty, setDirty] = useState(false);
   const [editMeta, setEditMeta] = useState(false);
@@ -111,7 +112,7 @@ export default function QuoteDetailPage() {
     mutationFn: () => api.patch(`/quotes/${id}`, {
       ...meta,
       validUntil: meta.validUntil ? new Date(meta.validUntil).toISOString() : null,
-      lineItems: lineItems.map((li, i) => ({ ...li, position: i })),
+      lineItems: lineItems.filter((li) => (li.description ?? "").trim().length > 0).map((li, i) => ({ ...li, position: i })),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quote", id] });
@@ -126,6 +127,8 @@ export default function QuoteDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quote", id] });
       toast({ title: "Quote sent to customer!" });
+      // If opened from a job, return there so the tradie sees the approval status next.
+      if (jobId) router.push(`/jobs/${jobId}`);
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
