@@ -9,6 +9,7 @@ import { sendBrandedEmail } from "../lib/mailer.js";
 import { notifyBusiness } from "../lib/notify.js";
 import { config } from "../config.js";
 import { presignUpload } from "../lib/r2.js";
+import { nextInvoiceNumber } from "../lib/numbering.js";
 import Stripe from "stripe";
 
 export default async function invoicesRoutes(fastify: FastifyInstance) {
@@ -128,10 +129,6 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
 
       const totals = calculateTotals(body.lineItems);
 
-      const invoiceNumber = `${settings?.invoicePrefix ?? "INV"}-${new Date().getFullYear()}-${String(
-        settings?.invoiceNextNumber ?? 1001
-      ).padStart(5, "0")}`;
-
       const dueDate = body.dueDate
         ? new Date(body.dueDate)
         : new Date(Date.now() + (settings?.invoicePaymentTerms ?? 14) * 86400000);
@@ -139,6 +136,7 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
       const portalToken = generatePortalToken();
 
       const invoice = await prisma.$transaction(async (tx) => {
+        const invoiceNumber = await nextInvoiceNumber(tx, request.tenantId);
         const invoice = await tx.invoice.create({
           data: {
             tenantId: request.tenantId,
@@ -181,11 +179,6 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
             totalCents: lineItemsCalc[idx].totalCents,
             position: li.position,
           })),
-        });
-
-        await tx.tenantSettings.update({
-          where: { tenantId: request.tenantId },
-          data: { invoiceNextNumber: { increment: 1 } },
         });
 
         return invoice;

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { nanoid, customAlphabet } from "nanoid";
 import { prisma } from "../lib/prisma.js";
 import { normalisePhone, generateNumber, encodeCursor, decodeCursor, calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
+import { nextJobNumber, nextQuoteNumber } from "../lib/numbering.js";
 import { enqueueAutomation, enqueueAIScoring } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { config } from "../config.js";
@@ -644,9 +645,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         // Optionally create job
         let job = null;
         if (body.createJob) {
-          const jobNumber = `JOB-${new Date().getFullYear()}-${String(
-            (settings?.jobNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
-          ).padStart(4, "0")}`;
+          const jobNumber = await nextJobNumber(tx, request.tenantId);
 
           job = await tx.job.create({
             data: {
@@ -681,15 +680,8 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
             items.map((li) => ({ quantity: li.quantity, unitPriceCents: li.unitPriceCents, discountPercent: 0, gstRate: li.gstRate }))
           );
 
-          const quoteNumber = `${settings?.quotePrefix ?? "QTE"}-${new Date().getFullYear()}-${String(
-            (settings?.quoteNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
-          ).padStart(4, "0")}`;
+          const quoteNumber = await nextQuoteNumber(tx, request.tenantId);
           const portalToken = generatePortalToken();
-
-          await tx.tenantSettings.update({
-            where: { tenantId: request.tenantId },
-            data: { quoteNextNumber: { increment: 1 } },
-          });
 
           quote = await tx.quote.create({
             data: {

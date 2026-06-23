@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { enqueueAutomation, enqueueDelayed, QUEUES } from "../lib/queue.js";
 import { auditFromRequest } from "../lib/audit.js";
 import { calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
+import { nextJobNumber, nextQuoteNumber, nextInvoiceNumber } from "../lib/numbering.js";
 import { config } from "../config.js";
 
 const createJobSchema = z.object({
@@ -187,12 +188,8 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Customer not found" } });
       }
 
-      const settings = await prisma.tenantSettings.findUnique({ where: { tenantId } });
-      const jobNumber = `${settings?.jobPrefix ?? "JOB"}-${new Date().getFullYear()}-${String(
-        (settings?.jobNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
-      ).padStart(4, "0")}`;
-
       const job = await prisma.$transaction(async (tx) => {
+        const jobNumber = await nextJobNumber(tx, tenantId);
         const job = await tx.job.create({
           data: {
             tenantId,
@@ -203,11 +200,6 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
             status: "pending",
             createdById: userId,
           },
-        });
-
-        await tx.tenantSettings.update({
-          where: { tenantId },
-          data: { jobNextNumber: { increment: 1 } },
         });
 
         // Add default checklists
@@ -617,16 +609,15 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
 
     const tenant = await prisma.tenant.findUnique({ where: { id: request.tenantId }, select: { gstRate: true } });
     const gstRate = Number(tenant?.gstRate ?? 0.1);
-    const settings = await prisma.tenantSettings.findUnique({ where: { tenantId: request.tenantId } });
 
     let raw = job.materials.map((m: any) => ({ description: m.name, quantity: Number(m.quantity), unitPriceCents: m.unitPriceCents, catalogItemId: m.catalogItemId ?? undefined }));
     if (raw.length === 0) raw = [{ description: job.title || "Work", quantity: 1, unitPriceCents: job.quotedAmountCents || 0, catalogItemId: undefined }];
     const items = raw.map((li, idx) => ({ ...li, gstRate, position: idx, ...calculateLineItem(li.quantity, li.unitPriceCents, gstRate, 0) }));
     const totals = calculateTotals(items.map((li) => ({ quantity: li.quantity, unitPriceCents: li.unitPriceCents, discountPercent: 0, gstRate })));
-    const quoteNumber = `${settings?.quotePrefix ?? "QTE"}-${new Date().getFullYear()}-${String((settings?.quoteNextNumber ?? 1000) + Math.floor(Math.random() * 9000)).padStart(4, "0")}`;
     const portalToken = generatePortalToken();
 
     const quote = await prisma.$transaction(async (tx) => {
+      const quoteNumber = await nextQuoteNumber(tx, request.tenantId);
       const q = await tx.quote.create({
         data: {
           tenantId: request.tenantId, quoteNumber, customerId: job.customerId, propertyId: job.propertyId ?? undefined,
@@ -637,7 +628,6 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         },
       });
       await tx.job.update({ where: { id }, data: { quoteId: q.id } });
-      if (settings) await tx.tenantSettings.update({ where: { tenantId: request.tenantId }, data: { quoteNextNumber: { increment: 1 } } });
       return q;
     });
     return reply.status(201).send({ data: quote });
@@ -739,10 +729,6 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         where: { tenantId: request.tenantId },
       });
 
-      const invoiceNumber = `${settings?.invoicePrefix ?? "INV"}-${new Date().getFullYear()}-${String(
-        (settings?.invoiceNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
-      ).padStart(4, "0")}`;
-
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + (settings?.invoicePaymentTerms ?? 14));
 
@@ -785,6 +771,7 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
       const gstCents = lineItems.reduce((sum, li) => sum + li.gstCents, 0);
 
       const { invoice } = await prisma.$transaction(async (tx) => {
+        const invoiceNumber = await nextInvoiceNumber(tx, request.tenantId);
         const invoice = await tx.invoice.create({
           data: {
             tenantId: request.tenantId,
@@ -817,11 +804,6 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
             })),
           });
         }
-
-        await tx.tenantSettings.update({
-          where: { tenantId: request.tenantId },
-          data: { invoiceNextNumber: { increment: 1 } },
-        });
 
         await tx.job.update({ where: { id }, data: { invoiceId: invoice.id, status: "invoiced" } });
 

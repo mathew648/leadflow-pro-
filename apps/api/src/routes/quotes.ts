@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
+import { nextQuoteNumber, nextJobNumber } from "../lib/numbering.js";
 import { enqueueEmail, enqueuePdf, enqueueAutomation } from "../lib/queue.js";
 import { config } from "../config.js";
 import { auditFromRequest } from "../lib/audit.js";
@@ -103,10 +104,6 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
       }
 
       const settings = await prisma.tenantSettings.findUnique({ where: { tenantId } });
-      const quoteNumber = `${settings?.quotePrefix ?? "QTE"}-${new Date().getFullYear()}-${String(
-        (settings?.quoteNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
-      ).padStart(4, "0")}`;
-
       // Calculate totals
       const lineItemCalcs = body.lineItems.map((li) => {
         const calc = calculateLineItem(li.quantity, li.unitPriceCents, li.gstRate, li.discountPercent);
@@ -129,11 +126,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
       const portalUrl = `${config.APP_URL}/portal/quote/${portalToken}`;
 
       const quote = await prisma.$transaction(async (tx) => {
-        // Increment quote number
-        await tx.tenantSettings.update({
-          where: { tenantId },
-          data: { quoteNextNumber: { increment: 1 } },
-        });
+        const quoteNumber = await nextQuoteNumber(tx, tenantId);
 
         const quote = await tx.quote.create({
           data: {
@@ -478,9 +471,6 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
 
       // Create job automatically on approval
       const settings = quote.tenant.settings;
-      const jobNumber = `${settings?.jobPrefix ?? "JOB"}-${new Date().getFullYear()}-${String(
-        (settings?.jobNextNumber ?? 1000) + Math.floor(Math.random() * 9000)
-      ).padStart(4, "0")}`;
 
       const { updatedQuote, job } = await prisma.$transaction(async (tx) => {
         const updatedQuote = await tx.quote.update({
@@ -498,6 +488,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         // so creating a second job for the same quote would throw a 500 on approval.
         let job = await tx.job.findFirst({ where: { quoteId: quote.id, deletedAt: null } });
         if (!job) {
+          const jobNumber = await nextJobNumber(tx, quote.tenantId);
           job = await tx.job.create({
             data: {
               tenantId: quote.tenantId,
@@ -512,12 +503,6 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
               createdById: quote.createdById ?? undefined,
             },
           });
-          if (settings) {
-            await tx.tenantSettings.update({
-              where: { tenantId: quote.tenantId },
-              data: { jobNextNumber: { increment: 1 } },
-            });
-          }
         }
 
         // Sync the approved quote's line items into the job's materials, so the job overview
@@ -627,15 +612,9 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Quote not found" } });
       }
 
-      const settings = await prisma.tenantSettings.findUnique({
-        where: { tenantId: request.tenantId },
-      });
-      const quoteNumber = `${settings?.quotePrefix ?? "QTE"}-${new Date().getFullYear()}-${String(
-        (settings?.quoteNextNumber ?? 1000) + 1
-      ).padStart(4, "0")}`;
-
       const portalToken = generatePortalToken();
       const newQuote = await prisma.$transaction(async (tx) => {
+        const quoteNumber = await nextQuoteNumber(tx, request.tenantId);
         const q = await tx.quote.create({
           data: {
             tenantId: request.tenantId,
@@ -666,11 +645,6 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
             createdAt: undefined,
             updatedAt: undefined,
           })),
-        });
-
-        await tx.tenantSettings.update({
-          where: { tenantId: request.tenantId },
-          data: { quoteNextNumber: { increment: 1 } },
         });
 
         return q;
