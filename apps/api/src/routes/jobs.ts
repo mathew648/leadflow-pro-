@@ -278,7 +278,7 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
           },
           materials: { orderBy: { createdAt: "asc" } },
           photos: { orderBy: { takenAt: "asc" } },
-          quote: { select: { id: true, quoteNumber: true, totalCents: true, status: true } },
+          quote: { select: { id: true, quoteNumber: true, totalCents: true, subtotalCents: true, status: true } },
         },
       });
 
@@ -304,10 +304,12 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
       // no material items. (Never use actualMaterialsCents here — that's a SELL-price total.)
       const materialsCostCents = materialItems.length > 0 ? materialsFromItems : (job.actualMaterialsCents || 0);
       const labourCostCents = (labourFromEntries + labourFromItems) || job.actualLabourCents || 0;
-      let revenueCents = job.quotedAmountCents || job.quote?.totalCents || 0;
+      // Revenue for profit is GST-EXCLUSIVE (the subtotal) — GST collected isn't the tradie's
+      // income, it's remitted to the ATO/IRD. Prefer the invoice/quote subtotal; quotedAmount is a fallback.
+      let revenueCents = job.quote?.subtotalCents ?? job.quotedAmountCents ?? 0;
       if (job.invoiceId) {
-        const inv = await prisma.invoice.findUnique({ where: { id: job.invoiceId }, select: { totalCents: true } });
-        if (inv) revenueCents = inv.totalCents;
+        const inv = await prisma.invoice.findUnique({ where: { id: job.invoiceId }, select: { subtotalCents: true } });
+        if (inv) revenueCents = inv.subtotalCents;
       }
       const profitCents = revenueCents - materialsCostCents - labourCostCents;
       const marginPct = revenueCents > 0 ? Math.round((profitCents / revenueCents) * 1000) / 10 : 0;

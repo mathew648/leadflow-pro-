@@ -691,7 +691,7 @@ function ProfitCard({ job, jobId }: { job: any; jobId: string }) {
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div className="rounded-lg bg-gray-50 p-3">
-            <p className="text-xs text-muted-foreground">Revenue</p>
+            <p className="text-xs text-muted-foreground">Revenue <span className="text-[9px]">(ex GST)</span></p>
             <p className="font-bold text-gray-900">{formatCurrency(revenue / 100)}</p>
             <p className="text-[10px] text-muted-foreground">{c.revenueSource === "invoice" ? "invoiced" : "quoted"}</p>
           </div>
