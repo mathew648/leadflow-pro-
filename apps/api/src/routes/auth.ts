@@ -240,14 +240,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
 
         // Default pipeline stages
+        // Lean lead pipeline — leads just need New → Contacted → Won/Lost. Site visits, quotes,
+        // etc. are tracked in the job/customer flow, not as lead stages.
         const defaultStages = [
           { name: "New", slug: "new", color: "#6B7280", position: 0, isDefault: true },
           { name: "Contacted", slug: "contacted", color: "#3B82F6", position: 1 },
-          { name: "Site Visit", slug: "site-visit", color: "#8B5CF6", position: 2 },
-          { name: "Quote Sent", slug: "quote-sent", color: "#F59E0B", position: 3 },
-          { name: "Follow Up", slug: "follow-up", color: "#EF4444", position: 4 },
-          { name: "Won", slug: "won", color: "#10B981", position: 5, isWon: true },
-          { name: "Lost", slug: "lost", color: "#6B7280", position: 6, isLost: true },
+          { name: "Won", slug: "won", color: "#10B981", position: 2, isWon: true },
+          { name: "Lost", slug: "lost", color: "#6B7280", position: 3, isLost: true },
         ];
 
         await tx.pipelineStage.createMany({

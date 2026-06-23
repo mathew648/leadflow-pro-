@@ -172,6 +172,41 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // POST /api/v1/leads/pipeline/reset  — simplify the lead pipeline to New → Contacted → Won → Lost.
+  // Idempotent: ensures the 4 canonical stages, moves leads off any other stages to Contacted, removes the extras.
+  fastify.post(
+    "/leads/pipeline/reset",
+    { preHandler: [fastify.authenticate, fastify.requireRole(["owner", "admin"])] },
+    async (request) => {
+      const tenantId = request.tenantId;
+      const canonical = [
+        { name: "New", slug: "new", color: "#6B7280", position: 0, isDefault: true, isWon: false, isLost: false },
+        { name: "Contacted", slug: "contacted", color: "#3B82F6", position: 1, isDefault: false, isWon: false, isLost: false },
+        { name: "Won", slug: "won", color: "#10B981", position: 2, isDefault: false, isWon: true, isLost: false },
+        { name: "Lost", slug: "lost", color: "#6B7280", position: 3, isDefault: false, isWon: false, isLost: true },
+      ];
+
+      for (const c of canonical) {
+        await prisma.pipelineStage.upsert({
+          where: { tenantId_slug: { tenantId, slug: c.slug } },
+          create: { tenantId, ...c },
+          update: { name: c.name, color: c.color, position: c.position, isDefault: c.isDefault, isWon: c.isWon, isLost: c.isLost },
+        });
+      }
+
+      const contacted = await prisma.pipelineStage.findFirst({ where: { tenantId, slug: "contacted" } });
+      const keep = new Set(canonical.map((c) => c.slug));
+      const extras = (await prisma.pipelineStage.findMany({ where: { tenantId } })).filter((s) => !keep.has(s.slug));
+      for (const s of extras) {
+        await prisma.lead.updateMany({ where: { tenantId, stageId: s.id }, data: { stageId: contacted!.id } });
+        await prisma.pipelineStage.delete({ where: { id: s.id } });
+      }
+
+      const stages = await prisma.pipelineStage.findMany({ where: { tenantId }, orderBy: { position: "asc" } });
+      return { data: { stages, removed: extras.map((s) => s.name) } };
+    }
+  );
+
   // POST /api/v1/leads
   fastify.post(
     "/leads",
