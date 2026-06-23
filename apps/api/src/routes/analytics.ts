@@ -155,8 +155,8 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           COALESCE(SUM("amount_cents"), 0)::int as amount,
           COUNT(*)::int as count
         FROM payments
-        WHERE "tenant_id" = ${request.tenantId}
-          AND status = 'paid'
+        WHERE "tenant_id" = ${request.tenantId}::uuid
+          AND status = 'completed'
           AND "paid_at" >= ${from}
           AND "paid_at" <= ${to}
         GROUP BY 1
@@ -202,7 +202,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             100.0 * COUNT(*) FILTER (WHERE status = 'converted') / NULLIF(COUNT(*), 0), 1
           )::float as rate
           FROM leads
-          WHERE tenant_id = ${tenantId}
+          WHERE tenant_id = ${tenantId}::uuid
             AND deleted_at IS NULL
             AND created_at >= ${from}
             AND created_at <= ${to}
@@ -212,7 +212,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             EXTRACT(EPOCH FROM (converted_at - created_at)) / 86400
           ), 1)::float as avg_days
           FROM leads
-          WHERE tenant_id = ${tenantId}
+          WHERE tenant_id = ${tenantId}::uuid
             AND status = 'converted'
             AND converted_at IS NOT NULL
             AND created_at >= ${from}
@@ -268,13 +268,13 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           ) / NULLIF(COUNT(j.id) FILTER (WHERE j.status = 'completed' AND j.scheduled_end IS NOT NULL), 0), 1)::float as on_time_rate
         FROM users u
         LEFT JOIN jobs j ON j.lead_technician_id = u.id
-          AND j.tenant_id = ${request.tenantId}
+          AND j.tenant_id = ${request.tenantId}::uuid
           AND j.completed_at >= ${from}
           AND j.completed_at <= ${to}
           AND j.deleted_at IS NULL
         LEFT JOIN time_entries te ON te.user_id = u.id
           AND te.job_id = j.id
-        WHERE u.tenant_id = ${request.tenantId}
+        WHERE u.tenant_id = ${request.tenantId}::uuid
           AND u.deleted_at IS NULL
           AND u.status = 'active'
           AND u.role IN ('technician', 'admin', 'manager', 'owner')
