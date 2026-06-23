@@ -398,7 +398,7 @@ export default function JobDetailPage() {
         {/* Overview tab */}
         {activeTab === "overview" && (
           <div className="space-y-4">
-            <ProfitCard job={job} jobId={id} />
+            <ProfitCard job={job} jobId={id} onAddCosts={() => setActiveTab("materials")} />
             {job.description && (
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Description</CardTitle></CardHeader>
@@ -670,7 +670,7 @@ export default function JobDetailPage() {
 }
 
 /* ─── Auto-computed job profit (materials + labour pulled from the job) ─── */
-function ProfitCard({ job, jobId }: { job: any; jobId: string }) {
+function ProfitCard({ job, jobId, onAddCosts }: { job: any; jobId: string; onAddCosts: () => void }) {
   const qc = useQueryClient();
   const c = job.costing ?? { revenueCents: 0, materialsCostCents: 0, labourCostCents: 0, profitCents: 0, marginPct: 0 };
   const [editing, setEditing] = useState(false);
@@ -682,6 +682,11 @@ function ProfitCard({ job, jobId }: { job: any; jobId: string }) {
   const labC = editing ? Math.round((parseFloat(labour) || 0) * 100) : c.labourCostCents;
   const profit = revenue - matC - labC;
   const margin = revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0;
+
+  const allItems = (job.materials ?? []);
+  const missingCount = allItems.filter((m: any) => !m.unitCostCents).length;
+  // Costs are incomplete if any item has no cost, or materials is just an estimate (no real item costs).
+  const costsIncomplete = missingCount > 0 || !c.materialsAuto;
 
   const save = useMutation({
     mutationFn: () => api.patch<any>(`/jobs/${jobId}`, {
@@ -725,10 +730,17 @@ function ProfitCard({ job, jobId }: { job: any; jobId: string }) {
             <p className={cn("text-[10px] font-medium", profitColor)}>{margin}% margin</p>
           </div>
         </div>
-        {!editing && (job.materials ?? []).some((m: any) => !m.unitCostCents) && (
-          <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-            ⚠ {(job.materials ?? []).filter((m: any) => !m.unitCostCents).length} item(s) have no cost entered — your real margin is likely lower. Add costs to the materials for an accurate profit.
-          </p>
+        {!editing && costsIncomplete && (
+          <button
+            type="button"
+            onClick={onAddCosts}
+            className="mt-3 w-full rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 text-sm flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            {missingCount > 0
+              ? `Add cost to ${missingCount} item${missingCount > 1 ? "s" : ""} to calculate your real profit`
+              : "Add item costs to calculate your real profit"}
+          </button>
         )}
         {editing ? (
           <div className="mt-3 flex gap-2 justify-end">
