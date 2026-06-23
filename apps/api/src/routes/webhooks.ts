@@ -31,6 +31,40 @@ function verifyStripe(payload: string, sig: string, secret: string): Stripe.Even
   }
 }
 
+// Verify a Resend (Svix-signed) webhook. Signed content is `${id}.${timestamp}.${rawBody}`,
+// HMAC-SHA256 with the base64 secret (after the `whsec_` prefix), compared to the v1 signatures.
+function verifyResendSignature(req: any, secret: string): boolean {
+  try {
+    const id = req.headers["svix-id"];
+    const ts = req.headers["svix-timestamp"];
+    const sigHeader = req.headers["svix-signature"];
+    const raw = req.rawBody;
+    if (!id || !ts || !sigHeader || !raw) return false;
+    const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
+    const expected = createHmac("sha256", key).update(`${id}.${ts}.${raw}`).digest("base64");
+    const sigs = String(sigHeader).split(" ").map((s) => s.split(",")[1]).filter(Boolean);
+    return sigs.some((s) => {
+      try { return timingSafeEqual(Buffer.from(s), Buffer.from(expected)); } catch { return false; }
+    });
+  } catch {
+    return false;
+  }
+}
+
+// Resend's inbound webhook only carries metadata — fetch the parsed body via the API.
+async function fetchResendReceivedEmail(emailId?: string): Promise<any | null> {
+  if (!emailId || !config.RESEND_API_KEY) return null;
+  try {
+    const res = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+      headers: { Authorization: `Bearer ${config.RESEND_API_KEY}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export default async function webhooksRoutes(fastify: FastifyInstance) {
   // GET /api/v1/webhooks/meta — Meta sends the webhook verification challenge as a GET.
   fastify.get("/webhooks/meta", async (request, reply) => {
@@ -510,8 +544,8 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
   // Builderscrack / hipages / NoCowboys / etc. notification emails to a unique address
   // (leads-<key>@in.tradiejet.com). The mail service posts the email here; we resolve the
   // tenant by <key>, AI-parse the customer details, and create a lead tagged with the portal.
-  fastify.post("/webhooks/email", async (request, reply) => {
-    // Accept JSON (Cloudflare/Postmark) OR multipart/form-data (SendGrid Inbound Parse / Mailgun).
+  fastify.post("/webhooks/email", { config: { rawBody: true } }, async (request, reply) => {
+    // Accept JSON (Resend / Cloudflare / Postmark) OR multipart/form-data (SendGrid / Mailgun).
     let b: any = {};
     if (typeof (request as any).isMultipart === "function" && (request as any).isMultipart()) {
       try {
@@ -523,8 +557,24 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
       b = (request.body as any) ?? {};
     }
 
-    // Optional shared secret — sent as a header, a body field, or a ?secret= query param.
-    if (config.INBOUND_EMAIL_SECRET) {
+    // Resend inbound: Svix-signed `email.*` events. Verify, ignore non-received types,
+    // fetch the parsed body (webhook is metadata-only), and normalise into `b`.
+    if (b && typeof b.type === "string" && b.type.startsWith("email.")) {
+      if (config.RESEND_WEBHOOK_SECRET && !verifyResendSignature(request, config.RESEND_WEBHOOK_SECRET)) {
+        return reply.status(401).send({ error: { code: "UNAUTHORIZED", message: "Bad signature" } });
+      }
+      if (b.type !== "email.received") {
+        return reply.status(200).send({ received: false, ignored: b.type });
+      }
+      const fetched = await fetchResendReceivedEmail(b.data?.email_id);
+      b = {
+        to: Array.isArray(b.data?.to) ? b.data.to.join(",") : (b.data?.to ?? ""),
+        from: b.data?.from ?? "",
+        subject: b.data?.subject ?? fetched?.subject ?? "",
+        text: fetched?.text ?? fetched?.html ?? "",
+      };
+    } else if (config.INBOUND_EMAIL_SECRET) {
+      // Optional shared secret (SendGrid/Mailgun/etc.) — header, body field, or ?secret= query param.
       const provided = request.headers["x-inbound-secret"] ?? b.secret ?? (request.query as any)?.secret;
       if (provided !== config.INBOUND_EMAIL_SECRET) {
         return reply.status(401).send({ error: { code: "UNAUTHORIZED", message: "Bad secret" } });
