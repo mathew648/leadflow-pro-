@@ -557,6 +557,43 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // PATCH /api/v1/jobs/:id/materials/:materialId — update cost/price/qty (e.g. fill a missing cost)
+  fastify.patch("/jobs/:id/materials/:materialId", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, materialId } = request.params as { id: string; materialId: string };
+    const body = z.object({
+      unitCostCents: z.number().int().min(0).optional(),
+      unitPriceCents: z.number().int().min(0).optional(),
+      quantity: z.number().positive().optional(),
+    }).parse(request.body ?? {});
+    const m = await prisma.jobMaterial.findFirst({ where: { id: materialId, jobId: id, tenantId: request.tenantId } });
+    if (!m) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Material not found" } });
+
+    const qty = body.quantity ?? Number(m.quantity);
+    const unitCost = body.unitCostCents ?? m.unitCostCents;
+    const unitPrice = body.unitPriceCents ?? m.unitPriceCents;
+    const material = await prisma.jobMaterial.update({
+      where: { id: materialId },
+      data: {
+        quantity: qty, unitCostCents: unitCost, unitPriceCents: unitPrice,
+        totalCostCents: Math.round(qty * unitCost), totalPriceCents: Math.round(qty * unitPrice),
+      },
+    });
+    const agg = await prisma.jobMaterial.aggregate({ where: { jobId: id, billable: true }, _sum: { totalPriceCents: true } });
+    await prisma.job.update({ where: { id }, data: { actualMaterialsCents: agg._sum.totalPriceCents ?? 0 } });
+    return { data: material };
+  });
+
+  // DELETE /api/v1/jobs/:id/materials/:materialId
+  fastify.delete("/jobs/:id/materials/:materialId", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, materialId } = request.params as { id: string; materialId: string };
+    const m = await prisma.jobMaterial.findFirst({ where: { id: materialId, jobId: id, tenantId: request.tenantId } });
+    if (!m) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Material not found" } });
+    await prisma.jobMaterial.delete({ where: { id: materialId } });
+    const agg = await prisma.jobMaterial.aggregate({ where: { jobId: id, billable: true }, _sum: { totalPriceCents: true } });
+    await prisma.job.update({ where: { id }, data: { actualMaterialsCents: agg._sum.totalPriceCents ?? 0 } });
+    return { data: { deleted: true } };
+  });
+
   // POST /api/v1/jobs/:id/tasks — add a task to a job
   fastify.post("/jobs/:id/tasks", { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };

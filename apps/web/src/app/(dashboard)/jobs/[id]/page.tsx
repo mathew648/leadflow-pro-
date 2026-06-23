@@ -110,6 +110,18 @@ export default function JobDetailPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const updateMaterialMutation = useMutation({
+    mutationFn: ({ materialId, unitCostCents }: { materialId: string; unitCostCents: number }) =>
+      api.patch(`/jobs/${id}/materials/${materialId}`, { unitCostCents }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["job", id] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  const deleteMaterialMutation = useMutation({
+    mutationFn: (materialId: string) => api.delete(`/jobs/${id}/materials/${materialId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["job", id] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const addTaskMutation = useMutation({
     mutationFn: () => api.post(`/jobs/${id}/tasks`, { title: newTask }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["job", id] }); setNewTask(""); },
@@ -524,13 +536,29 @@ export default function JobDetailPage() {
                   <Package className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{m.name}</p>
-                    {m.supplier && <p className="text-xs text-muted-foreground">{m.supplier}</p>}
+                    <p className="text-xs text-muted-foreground">{m.quantity} {m.unit ?? "ea"} · sell {formatCurrency(m.unitPriceCents)}</p>
                   </div>
-                  <div className="text-right text-sm flex-shrink-0">
-                    <p>{m.quantity} {m.unit ?? "ea"}</p>
-                    {m.unitCostCents > 0
-                      ? <p className="text-muted-foreground">{formatCurrency(m.unitCostCents * m.quantity)} cost</p>
-                      : <p className="text-amber-600 text-xs font-medium">⚠ cost missing</p>}
+                  {/* Inline editable cost — type a unit cost, profit updates on blur */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[11px] text-muted-foreground">cost</span>
+                    <div className="relative">
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                      <input
+                        type="number" min="0" step="0.01" placeholder="0.00"
+                        aria-label={`Unit cost for ${m.name}`}
+                        defaultValue={m.unitCostCents ? (m.unitCostCents / 100).toFixed(2) : ""}
+                        onBlur={(e) => {
+                          const c = Math.round((Number(e.target.value) || 0) * 100);
+                          if (c !== m.unitCostCents) updateMaterialMutation.mutate({ materialId: m.id, unitCostCents: c });
+                        }}
+                        className={cn("w-20 pl-5 pr-1.5 py-1 text-sm border rounded text-right focus:outline-none focus:ring-1 focus:ring-primary",
+                          !m.unitCostCents && "border-amber-300 bg-amber-50")}
+                      />
+                    </div>
+                    <button type="button" onClick={() => deleteMaterialMutation.mutate(m.id)} aria-label="Remove item"
+                      className="p-1 text-muted-foreground hover:text-red-500">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}
