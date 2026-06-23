@@ -54,6 +54,7 @@ const updateTenantSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   gstRate: z.number().min(0).max(1).optional(),
   taxNumber: z.string().optional(),
+  nzbn: z.string().optional(),
 });
 
 export default async function tenantsRoutes(fastify: FastifyInstance) {

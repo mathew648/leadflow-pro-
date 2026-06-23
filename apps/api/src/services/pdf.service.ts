@@ -46,7 +46,35 @@ async function renderHtml(html: string): Promise<Buffer> {
 }
 
 function formatMoney(cents: number, currency = "AUD"): string {
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
+  const locale = currency === "NZD" ? "en-NZ" : "en-AU";
+  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
+}
+
+// Full supplier details for a compliant AU/NZ tax invoice: business name, address,
+// contact, and the correct tax identifiers (NZ → GST Number + NZBN; AU → ABN + GST No.).
+function businessDetailsHtml(tenant: any): string {
+  const addr = [
+    tenant.streetAddress,
+    [tenant.suburb, tenant.city].filter(Boolean).join(", "),
+    [tenant.state, tenant.postcode].filter(Boolean).join(" "),
+  ].filter((l) => l && String(l).trim());
+  const isNZ = String(tenant.country ?? "AU").toUpperCase() === "NZ";
+  const ids: string[] = [];
+  if (isNZ) {
+    if (tenant.taxNumber) ids.push(`GST Number: ${tenant.taxNumber}`);
+    if (tenant.nzbn) ids.push(`NZBN: ${tenant.nzbn}`);
+  } else {
+    if (tenant.abn) ids.push(`ABN: ${tenant.abn}`);
+    if (tenant.taxNumber) ids.push(`GST No: ${tenant.taxNumber}`);
+  }
+  return `
+    <h1>${tenant.businessName}</h1>
+    ${addr.map((l) => `<p>${l}</p>`).join("")}
+    ${tenant.phone ? `<p>${tenant.phone}</p>` : ""}
+    ${tenant.email ? `<p>${tenant.email}</p>` : ""}
+    ${tenant.websiteUrl ? `<p>${tenant.websiteUrl}</p>` : ""}
+    ${ids.map((t) => `<p style="font-weight:600;">${t}</p>`).join("")}
+  `;
 }
 
 function buildQuoteHtml(quote: any, tenant: any): string {
@@ -87,10 +115,7 @@ function buildQuoteHtml(quote: any, tenant: any): string {
 <body>
 <div class="header">
   <div>
-    <h1>${tenant.businessName}</h1>
-    <p>${tenant.email ?? ""}</p>
-    <p>${tenant.phone ?? ""}</p>
-    ${tenant.abn ? `<p>ABN: ${tenant.abn}</p>` : ""}
+    ${businessDetailsHtml(tenant)}
   </div>
   <div style="text-align:right;">
     <div class="badge">QUOTE</div>
@@ -179,10 +204,7 @@ function buildInvoiceHtml(invoice: any, tenant: any): string {
 <body>
 <div class="header">
   <div>
-    <h1>${tenant.businessName}</h1>
-    <p>${tenant.email ?? ""}</p>
-    <p>${tenant.phone ?? ""}</p>
-    ${tenant.abn ? `<p>ABN: ${tenant.abn}</p>` : ""}
+    ${businessDetailsHtml(tenant)}
   </div>
   <div style="text-align:right;">
     <div class="badge ${isOverdue ? "overdue" : ""}">TAX INVOICE</div>

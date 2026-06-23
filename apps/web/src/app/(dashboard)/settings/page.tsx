@@ -119,8 +119,11 @@ function BusinessTab() {
       businessName: tenant.businessName ?? "",
       phone: tenant.phone ?? "",
       abn: tenant.abn ?? "",
+      nzbn: tenant.nzbn ?? "",
+      taxNumber: tenant.taxNumber ?? "",
       streetAddress: tenant.streetAddress ?? "",
       suburb: tenant.suburb ?? "",
+      city: tenant.city ?? "",
       state: tenant.state ?? "",
       postcode: tenant.postcode ?? "",
       timezone: tenant.timezone ?? "Australia/Sydney",
@@ -172,18 +175,33 @@ function BusinessTab() {
               <Input {...register("phone")} />
             </div>
             <div className="space-y-1.5">
-              <Label>ABN / Tax Number</Label>
+              <Label>ABN (Australia)</Label>
               <Input {...register("abn")} placeholder="12 345 678 901" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>GST Number</Label>
+              <Input {...register("taxNumber")} placeholder="e.g. 123-456-789" />
+              <p className="text-xs text-muted-foreground">Shown on your tax invoices (required for NZ GST-registered businesses).</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>NZBN (New Zealand)</Label>
+              <Input {...register("nzbn")} placeholder="9429000000000" />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label>Street address</Label>
             <Input {...register("streetAddress")} />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label>Suburb</Label>
               <Input {...register("suburb")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>City</Label>
+              <Input {...register("city")} />
             </div>
             <div className="space-y-1.5">
               <Label>State</Label>

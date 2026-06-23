@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 
 interface LineItem {
   id?: string;
+  catalogItemId?: string;
   description: string;
   notes: string;
   unit: string;
@@ -68,6 +69,12 @@ export default function QuoteDetailPage() {
     queryFn: () => api.get<any>(`/quotes/${id}`),
   });
 
+  const { data: catalogData } = useQuery({
+    queryKey: ["catalog-items-quote-edit"],
+    queryFn: () => api.get<any>("/catalog/items?limit=200"),
+  });
+  const catalogItems: any[] = (Array.isArray(catalogData) ? catalogData : (catalogData?.data ?? []));
+
   useEffect(() => {
     if (data) {
       const q = data as any;
@@ -85,6 +92,7 @@ export default function QuoteDetailPage() {
         position: li.position,
         section: li.section ?? "",
         costPriceCents: li.costPriceCents ?? 0,
+        catalogItemId: li.catalogItemId ?? undefined,
       })));
       setMeta({
         title: q.title,
@@ -142,6 +150,28 @@ export default function QuoteDetailPage() {
 
   const updateLine = (i: number, field: keyof LineItem, value: any) => {
     setLineItems((prev) => prev.map((li, idx) => idx === i ? { ...li, [field]: value } : li));
+    setDirty(true);
+  };
+
+  // Description doubles as a price-book picker: typing/selecting a catalog item name
+  // auto-fills the unit, price, cost and GST from the price book.
+  const setDescription = (i: number, value: string) => {
+    const match = catalogItems.find((c) => (c.name ?? "").toLowerCase() === value.trim().toLowerCase());
+    setLineItems((prev) => prev.map((li, idx) => {
+      if (idx !== i) return li;
+      if (match) {
+        return {
+          ...li,
+          description: match.name,
+          unit: match.unit ?? li.unit,
+          unitPriceCents: match.unitPriceCents ?? match.sellPriceCents ?? li.unitPriceCents,
+          costPriceCents: match.unitCostCents ?? match.costPriceCents ?? li.costPriceCents,
+          gstRate: match.gstRate ?? li.gstRate,
+          catalogItemId: match.id,
+        };
+      }
+      return { ...li, description: value, catalogItemId: undefined };
+    }));
     setDirty(true);
   };
 
@@ -331,6 +361,14 @@ export default function QuoteDetailPage() {
               <div className="col-span-1" />
             </div>
 
+            <datalist id="pricebook-list">
+              {catalogItems.map((it) => (
+                <option key={it.id} value={it.name}>
+                  {(it.unitPriceCents ?? it.sellPriceCents) ? formatCurrency(it.unitPriceCents ?? it.sellPriceCents) : ""}
+                </option>
+              ))}
+            </datalist>
+
             <div className="space-y-2 mt-2">
               {lineItems.map((li, i) => {
                 const c = calcLine(li);
@@ -339,9 +377,10 @@ export default function QuoteDetailPage() {
                     <div className="col-span-12 lg:col-span-4">
                       <input
                         type="text"
-                        placeholder="Description"
+                        list="pricebook-list"
+                        placeholder="Description or pick from price book…"
                         value={li.description}
-                        onChange={(e) => updateLine(i, "description", e.target.value)}
+                        onChange={(e) => setDescription(i, e.target.value)}
                         disabled={isLocked}
                         className="w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       />
@@ -374,8 +413,9 @@ export default function QuoteDetailPage() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={(li.unitPriceCents / 100).toFixed(2)}
-                          onChange={(e) => updateLine(i, "unitPriceCents", Math.round(Number(e.target.value) * 100))}
+                          placeholder="0.00"
+                          value={li.unitPriceCents ? li.unitPriceCents / 100 : ""}
+                          onChange={(e) => updateLine(i, "unitPriceCents", Math.round((Number(e.target.value) || 0) * 100))}
                           disabled={isLocked}
                           className="w-full pl-6 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                         />
