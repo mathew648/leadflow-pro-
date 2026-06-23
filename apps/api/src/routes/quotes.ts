@@ -229,6 +229,14 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      // Tolerate blank/half-typed rows: drop line items with no description before validating,
+      // so a stray empty row from the editor never 400s the save.
+      const rawBody: any = request.body ?? {};
+      if (Array.isArray(rawBody.lineItems)) {
+        rawBody.lineItems = rawBody.lineItems.filter(
+          (li: any) => li && typeof li.description === "string" && li.description.trim().length > 0
+        );
+      }
       const body = z.object({
         title: z.string().optional(),
         description: z.string().optional(),
@@ -239,7 +247,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         paymentTermsText: z.string().optional(),
         termsConditions: z.string().optional(),
         lineItems: z.array(lineItemSchema).optional(),
-      }).parse(request.body);
+      }).parse(rawBody);
 
       const existing = await prisma.quote.findFirst({
         where: { id, tenantId: request.tenantId, deletedAt: null },
@@ -445,6 +453,7 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         include: {
           tenant: { include: { settings: true } },
           customer: true,
+          lineItems: { orderBy: { position: "asc" } },
         },
       });
 
@@ -510,6 +519,31 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
             });
           }
         }
+
+        // Sync the approved quote's line items into the job's materials, so the job overview
+        // shows what was quoted. Cost stays 0 (empty) for items not from the price book.
+        const existingMats = await tx.jobMaterial.findMany({ where: { jobId: job.id } });
+        const haveKey = new Set(existingMats.map((m) => (m.catalogItemId ?? m.name.toLowerCase())));
+        const newMats = quote.lineItems
+          .filter((li) => !haveKey.has(li.catalogItemId ?? li.description.toLowerCase()))
+          .map((li) => {
+            const qty = Number(li.quantity);
+            const unitCost = li.costPriceCents ?? 0;
+            const unitPrice = li.unitPriceCents;
+            return {
+              tenantId: quote.tenantId,
+              jobId: job!.id,
+              catalogItemId: li.catalogItemId ?? undefined,
+              name: li.description,
+              quantity: qty,
+              unitCostCents: unitCost,
+              unitPriceCents: unitPrice,
+              totalCostCents: Math.round(unitCost * qty),
+              totalPriceCents: Math.round(unitPrice * qty),
+              addedFrom: "quote",
+            };
+          });
+        if (newMats.length > 0) await tx.jobMaterial.createMany({ data: newMats });
 
         await tx.quote.update({ where: { id: quote.id }, data: { convertedToJobId: job.id } });
 
