@@ -65,6 +65,23 @@ export default function CustomerDetailPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const { data: reqData } = useQuery({
+    queryKey: ["requirements", id],
+    queryFn: () => api.get<any>(`/requirements?customerId=${id}`),
+  });
+  const requirements: any[] = Array.isArray(reqData) ? reqData : (reqData?.data ?? []);
+
+  const sendRequirement = useMutation({
+    mutationFn: () => api.post<any>("/requirements", { customerId: id }),
+    onSuccess: () => { toast({ title: "Requirement form sent to the customer" }); qc.invalidateQueries({ queryKey: ["requirements", id] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  const quoteFromRequirement = useMutation({
+    mutationFn: (reqId: string) => api.post<any>(`/requirements/${reqId}/quote`, {}),
+    onSuccess: (res: any) => { const qid = res?.id ?? res?.data?.id; if (qid) router.push(`/quotes/${qid}`); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   if (isLoading) {
     return (
       <div>
@@ -233,6 +250,55 @@ export default function CustomerDetailPage() {
         {/* Tab content */}
         {tab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Job requests — send a "tell us what you need" form, then quote from it */}
+            <Card className="lg:col-span-2 border-brand-200">
+              <CardHeader className="pb-2 flex-row items-center justify-between">
+                <CardTitle className="text-sm font-medium">📋 Job requests</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => sendRequirement.mutate()} disabled={sendRequirement.isPending}>
+                  {sendRequirement.isPending ? "Sending…" : "Send requirement form"}
+                </Button>
+              </CardHeader>
+              <CardContent className="pb-3 space-y-2">
+                {requirements.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Send the customer a quick form to capture what they need (with photos), then build a quote from their answers.</p>
+                ) : requirements.map((r: any) => (
+                  <div key={r.id} className="rounded-lg border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge className={cn("text-xs", r.status === "submitted" ? "bg-green-100 text-green-700" : r.status === "quoted" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600")}>
+                        {r.status === "sent" ? "Awaiting customer" : r.status === "submitted" ? "Submitted ✓" : "Quoted"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">{formatRelative(r.createdAt)}</span>
+                    </div>
+                    {r.status !== "sent" && (
+                      <div className="mt-2 space-y-1.5">
+                        {r.details && <p className="whitespace-pre-line">{r.details}</p>}
+                        {r.preferredTiming && <p className="text-xs text-muted-foreground">⏰ {r.preferredTiming}</p>}
+                        {r.budgetText && <p className="text-xs text-muted-foreground">💰 {r.budgetText}</p>}
+                        {r.accessNotes && <p className="text-xs text-muted-foreground">🔑 {r.accessNotes}</p>}
+                        {r.photoUrls?.length > 0 && (
+                          <div className="flex gap-2 flex-wrap mt-1">
+                            {r.photoUrls.map((u: string, idx: number) => (
+                              <a key={idx} href={u} target="_blank" rel="noopener noreferrer" title="View photo" aria-label="View job photo">
+                                <img src={u} alt="Job photo" className="w-16 h-16 object-cover rounded border" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {r.status === "submitted" && (
+                          <Button size="sm" className="mt-2" onClick={() => quoteFromRequirement.mutate(r.id)} disabled={quoteFromRequirement.isPending}>
+                            Create quote from this
+                          </Button>
+                        )}
+                        {r.status === "quoted" && r.quoteId && (
+                          <Link href={`/quotes/${r.quoteId}`} className="text-xs text-brand-600 hover:underline mt-1 inline-block">View quote →</Link>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
             {/* Properties */}
             <Card>
               <CardHeader className="pb-2">

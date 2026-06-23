@@ -1471,3 +1471,30 @@ model ServiceAgreement {
   @@index([nextRunAt])
   @@map("service_agreements")
 }
+
+// A customer-facing "tell us what you need" intake the tradie sends after creating a customer.
+// The customer fills it (details + photos), submits, and the tradie quotes from it.
+model RequirementRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid @map("tenant_id")
+  customerId      String    @db.Uuid @map("customer_id")
+  token           String    @unique @db.VarChar(64)
+  status          String    @default("sent") @db.VarChar(20) // sent | submitted | quoted
+
+  // Customer-filled
+  details         String?   // what they need done
+  preferredTiming String?   @map("preferred_timing")
+  budgetText      String?   @map("budget_text")
+  accessNotes     String?   @map("access_notes")
+  photoUrls       String[]  @map("photo_urls")
+  submittedAt     DateTime? @map("submitted_at")
+
+  quoteId         String?   @db.Uuid @map("quote_id")
+  createdById     String?   @db.Uuid @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@map("requirement_requests")
+}
