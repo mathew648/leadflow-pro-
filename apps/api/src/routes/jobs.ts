@@ -290,14 +290,19 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
       // so a tradie sees profit without re-entering anything.
       // Split job items by type so labour/subcontractor lines count as labour, not materials.
       const isLabourType = (m: any) => ["labour", "subcontract"].includes(m.lineType ?? "material");
-      const materialsFromItems = job.materials.filter((m: any) => !isLabourType(m)).reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
-      const labourFromItems = job.materials.filter(isLabourType).reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
+      const materialItems = job.materials.filter((m: any) => !isLabourType(m));
+      const labourItems = job.materials.filter(isLabourType);
+      const materialsFromItems = materialItems.reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
+      const labourFromItems = labourItems.reduce((s: number, m: any) => s + (m.totalCostCents || 0), 0);
       const labourFromEntries = job.timeEntries.reduce((s: number, t: any) => {
         if (t.totalCents != null) return s + t.totalCents;
         if (t.durationMinutes && t.hourlyRateCents) return s + Math.round((t.durationMinutes / 60) * t.hourlyRateCents);
         return s;
       }, 0);
-      const materialsCostCents = materialsFromItems || job.actualMaterialsCents || 0;
+      // When material items exist, materials COST is the sum of their unit COSTS (0 if not yet
+      // entered — honest, the UI flags it). Only fall back to the manual estimate when there are
+      // no material items. (Never use actualMaterialsCents here — that's a SELL-price total.)
+      const materialsCostCents = materialItems.length > 0 ? materialsFromItems : (job.actualMaterialsCents || 0);
       const labourCostCents = (labourFromEntries + labourFromItems) || job.actualLabourCents || 0;
       let revenueCents = job.quotedAmountCents || job.quote?.totalCents || 0;
       if (job.invoiceId) {
