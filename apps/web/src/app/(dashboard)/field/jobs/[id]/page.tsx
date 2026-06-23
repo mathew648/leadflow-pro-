@@ -133,7 +133,9 @@ export default function FieldJobPage() {
   const address = job.property
     ? [job.property.streetAddress, job.property.suburb, job.property.state, job.property.postcode].filter(Boolean).join(", ")
     : "";
-  const canStart = ["pending", "scheduled", "dispatched"].includes(job.status);
+  // Lock field work until the customer approves the quote (if the job has one).
+  const workLocked = !!job.quoteId && job.quote?.status !== "approved";
+  const canStart = !workLocked && ["pending", "scheduled", "dispatched"].includes(job.status);
   const isRunning = job.status === "in_progress";
   const isDone = job.status === "completed";
 
@@ -142,6 +144,12 @@ export default function FieldJobPage() {
       <Link href="/field" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-gray-500">
         <ArrowLeft className="h-4 w-4" /> My Day
       </Link>
+
+      {workLocked && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          ⏳ Waiting on quote approval — you can start this job and tick off tasks once the customer approves the quote.
+        </div>
+      )}
 
       <div className="mb-4">
         <span className={cn("text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full", statusColor(job.status))}>
@@ -200,7 +208,7 @@ export default function FieldJobPage() {
             {cl.items.map((item: any) => (
               <button
                 key={item.id}
-                disabled={isDone}
+                disabled={isDone || workLocked}
                 onClick={() => toggleChecklist.mutate({ checklistId: cl.id, itemId: item.id, checked: !item.checked })}
                 className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left active:bg-gray-50 disabled:opacity-60"
               >
@@ -251,7 +259,7 @@ export default function FieldJobPage() {
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Materials used</h2>
-          {!isDone && (
+          {!isDone && !workLocked && (
             <button onClick={() => setShowAddMaterial(true)} className="flex items-center gap-1 text-sm font-semibold text-blue-600 active:text-blue-700">
               <Plus className="h-4 w-4" /> Add
             </button>

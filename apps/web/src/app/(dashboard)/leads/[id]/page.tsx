@@ -55,7 +55,7 @@ export default function LeadDetailPage() {
   });
 
   const noteMutation = useMutation({
-    mutationFn: () => api.post(`/leads/${id}/notes`, { content: noteText }),
+    mutationFn: () => api.post(`/leads/${id}/notes`, { note: noteText }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["lead", id] });
       setNoteText("");

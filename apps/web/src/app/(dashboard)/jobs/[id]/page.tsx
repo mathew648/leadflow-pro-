@@ -186,8 +186,10 @@ export default function JobDetailPage() {
   const canComplete = job.status === "in_progress";
   const quoteStatus = job.quote?.status as string | undefined;
   const quoteApproved = quoteStatus === "approved";
-  const canStart = job.status === "dispatched" || job.status === "scheduled" ||
-    (quoteApproved && !["in_progress", "completed", "cancelled"].includes(job.status));
+  // If the job has a quote that isn't approved yet, work is locked (can't start / add tasks / add items).
+  const workLocked = !!job.quoteId && !quoteApproved;
+  const canStart = !workLocked && (job.status === "dispatched" || job.status === "scheduled" ||
+    (quoteApproved && !["in_progress", "completed", "cancelled"].includes(job.status)));
 
   return (
     <div>
@@ -363,6 +365,17 @@ export default function JobDetailPage() {
           ))}
         </div>
 
+        {/* Work is locked until the customer approves the quote */}
+        {workLocked && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+            <Clock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-900">Waiting on quote approval</p>
+              <p className="text-amber-700">Once the customer approves the quote, you can start the job, tick off tasks and add items. The quote's items will appear here automatically.</p>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="border-b flex gap-0">
           {(["overview", "tasks", "time", "materials", "photos"] as const).map((t) => (
@@ -440,7 +453,7 @@ export default function JobDetailPage() {
                     onKeyDown={(e) => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }}
                     className="flex-1 px-2.5 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   />
-                  <Button size="sm" onClick={() => addTaskMutation.mutate()} disabled={!newTask.trim() || addTaskMutation.isPending}><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                  <Button size="sm" onClick={() => addTaskMutation.mutate()} disabled={!newTask.trim() || addTaskMutation.isPending || workLocked}><Plus className="w-4 h-4 mr-1" /> Add</Button>
                 </div>
               </CardContent>
             </Card>
@@ -598,8 +611,8 @@ export default function JobDetailPage() {
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">cost</span>
                     <input
                       type="number" placeholder="0.00" min="0" step="0.01" aria-label="Unit cost"
-                      value={(newMaterial.unitCostCents / 100).toFixed(2)}
-                      onChange={(e) => setNewMaterial((p) => ({ ...p, unitCostCents: Math.round(Number(e.target.value) * 100) }))}
+                      value={newMaterial.unitCostCents ? newMaterial.unitCostCents / 100 : ""}
+                      onChange={(e) => setNewMaterial((p) => ({ ...p, unitCostCents: Math.round((Number(e.target.value) || 0) * 100) }))}
                       className="w-full pl-9 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -607,8 +620,8 @@ export default function JobDetailPage() {
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">price</span>
                     <input
                       type="number" placeholder="0.00" min="0" step="0.01" aria-label="Unit price (charge to customer)"
-                      value={(newMaterial.unitPriceCents / 100).toFixed(2)}
-                      onChange={(e) => setNewMaterial((p) => ({ ...p, unitPriceCents: Math.round(Number(e.target.value) * 100) }))}
+                      value={newMaterial.unitPriceCents ? newMaterial.unitPriceCents / 100 : ""}
+                      onChange={(e) => setNewMaterial((p) => ({ ...p, unitPriceCents: Math.round((Number(e.target.value) || 0) * 100) }))}
                       className="w-full pl-9 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -616,7 +629,7 @@ export default function JobDetailPage() {
                 <Button
                   size="sm" className="mt-2"
                   onClick={() => addMaterialMutation.mutate()}
-                  disabled={!newMaterial.name || addMaterialMutation.isPending}
+                  disabled={!newMaterial.name || addMaterialMutation.isPending || workLocked}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add item
                 </Button>
