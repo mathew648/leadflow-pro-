@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 import { enqueueEmail } from "../lib/queue.js";
 import { isPlatformAdmin } from "../lib/platform-admin.js";
@@ -426,6 +427,55 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.delete("/admin/blog/:id", guard, async (request, reply) => {
     const { id } = request.params as { id: string };
     await prisma.blogPost.delete({ where: { id } }).catch(() => null);
+    return reply.status(204).send();
+  });
+
+  // ─── Support agents (customer-service team logins) ───
+
+  // GET /api/v1/admin/support/agents
+  fastify.get("/admin/support/agents", guard, async () => {
+    const agents = await prisma.supportAgent.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, email: true, isActive: true, createdAt: true },
+    });
+    return { data: agents };
+  });
+
+  // POST /api/v1/admin/support/agents — create a CS agent login
+  fastify.post("/admin/support/agents", guard, async (request, reply) => {
+    const body = z.object({
+      name: z.string().min(1).max(150),
+      email: z.string().email(),
+      password: z.string().min(8),
+    }).parse(request.body);
+    const email = body.email.trim().toLowerCase();
+    if (await prisma.supportAgent.findUnique({ where: { email } })) {
+      return reply.status(409).send({ error: { code: "EMAIL_TAKEN", message: "An agent with that email already exists" } });
+    }
+    const agent = await prisma.supportAgent.create({
+      data: { name: body.name, email, passwordHash: await bcrypt.hash(body.password, 12) },
+      select: { id: true, name: true, email: true, isActive: true, createdAt: true },
+    });
+    return reply.status(201).send({ data: agent });
+  });
+
+  // PATCH /api/v1/admin/support/agents/:id — toggle active or reset password
+  fastify.patch("/admin/support/agents/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({ isActive: z.boolean().optional(), password: z.string().min(8).optional() }).parse(request.body);
+    const agent = await prisma.supportAgent.update({
+      where: { id },
+      data: { isActive: body.isActive, passwordHash: body.password ? await bcrypt.hash(body.password, 12) : undefined },
+      select: { id: true, name: true, email: true, isActive: true },
+    }).catch(() => null);
+    if (!agent) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Agent not found" } });
+    return { data: agent };
+  });
+
+  // DELETE /api/v1/admin/support/agents/:id
+  fastify.delete("/admin/support/agents/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await prisma.supportAgent.delete({ where: { id } }).catch(() => null);
     return reply.status(204).send();
   });
 }

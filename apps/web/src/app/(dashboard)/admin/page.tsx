@@ -97,7 +97,8 @@ export default function AdminPage() {
     <div>
       <Topbar title="Platform Admin" />
       <div className="p-4 lg:p-6 space-y-6">
-        <div className="flex justify-end -mb-2">
+        <div className="flex justify-end gap-4 -mb-2">
+          <a href="/admin/support" className="text-sm font-medium text-primary hover:underline">Support team</a>
           <a href="/admin/marketing" className="text-sm font-medium text-primary hover:underline">Marketing → waitlist · subscribers · blog</a>
         </div>
         {/* Stats */}

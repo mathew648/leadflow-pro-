@@ -1549,3 +1549,64 @@ model BlogPost {
   @@index([status, publishedAt])
   @@map("blog_posts")
 }
+
+// ─── Support: tickets, live chat, CS agents ───
+
+model SupportAgent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  name         String   @db.VarChar(150)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tickets  SupportTicket[]
+  messages SupportMessage[]
+
+  @@map("support_agents")
+}
+
+model SupportTicket {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @db.Uuid @map("tenant_id")
+  createdById     String?   @db.Uuid @map("created_by_id")
+  // Denormalised so agents see who they're helping without a tenant join
+  businessName    String?   @db.VarChar(200) @map("business_name")
+  customerName    String?   @db.VarChar(150) @map("customer_name")
+  customerEmail   String?   @db.VarChar(255) @map("customer_email")
+  subject         String    @db.VarChar(255)
+  category        String?   @db.VarChar(50)
+  channel         String    @default("chat") @db.VarChar(20) // chat | email
+  status          String    @default("open") @db.VarChar(20) // open | pending | resolved | closed
+  priority        String    @default("normal") @db.VarChar(20)
+  assignedAgentId String?   @db.Uuid @map("assigned_agent_id")
+  lastMessageAt   DateTime  @default(now()) @map("last_message_at")
+  customerLastReadAt DateTime? @map("customer_last_read_at")
+  agentLastReadAt    DateTime? @map("agent_last_read_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  assignedAgent SupportAgent?    @relation(fields: [assignedAgentId], references: [id])
+  messages      SupportMessage[]
+
+  @@index([status, lastMessageAt])
+  @@index([tenantId, status])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId   String   @db.Uuid @map("ticket_id")
+  senderType String   @db.VarChar(20) // tradie | agent | system
+  senderName String?  @db.VarChar(150) @map("sender_name")
+  agentId    String?  @db.Uuid @map("agent_id")
+  body       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  agent  SupportAgent? @relation(fields: [agentId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}

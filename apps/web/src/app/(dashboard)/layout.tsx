@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { SupportWidget } from "@/components/support-widget";
 import { useAuthStore } from "@/lib/store";
 import { getMe, refreshAccessToken } from "@/lib/auth";
 
@@ -68,6 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
         {children}
       </main>
+      <SupportWidget />
     </div>
   );
 }

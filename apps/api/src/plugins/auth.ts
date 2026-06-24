@@ -25,6 +25,7 @@ declare module "fastify" {
     jwtUser: JWTPayload;
     tenantId: string;
     userId: string;
+    agentId: string;
   }
 }
 
@@ -61,6 +62,22 @@ export default fp(async function authPlugin(fastify: FastifyInstance) {
     }
   );
 
+  // Decorator: verify a support-agent JWT (separate login from tradie users)
+  fastify.decorate(
+    "authenticateAgent",
+    async function authenticateAgent(request: FastifyRequest, reply: FastifyReply) {
+      try {
+        await request.jwtVerify();
+        if ((request.user as JWTPayload).type !== "agent") {
+          return reply.status(403).send({ error: { code: "FORBIDDEN", message: "Support agents only" } });
+        }
+        request.agentId = request.user.sub;
+      } catch (err) {
+        return reply.status(401).send({ error: { code: "UNAUTHORIZED", message: "Invalid or expired token" } });
+      }
+    }
+  );
+
   // Decorator: require specific roles
   fastify.decorate(
     "requireRole",
@@ -84,6 +101,7 @@ export default fp(async function authPlugin(fastify: FastifyInstance) {
 declare module "fastify" {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authenticateAgent: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
     requireRole: (roles: string[]) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
