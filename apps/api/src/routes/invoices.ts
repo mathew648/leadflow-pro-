@@ -420,7 +420,7 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
           customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
           lineItems: { orderBy: { position: "asc" } },
           payments: { where: { status: { in: ["completed", "pending"] } }, select: { amountCents: true, paidAt: true, paymentGateway: true, paymentMethod: true, status: true } },
-          tenant: { select: { businessName: true, logoUrl: true, phone: true, email: true, abn: true, primaryColor: true, stripeAccountId: true } },
+          tenant: { select: { businessName: true, logoUrl: true, phone: true, email: true, abn: true, primaryColor: true, stripeAccountId: true, stripeChargesEnabled: true } },
         },
       });
 
@@ -433,9 +433,10 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
         await prisma.invoice.update({ where: { id: invoice.id }, data: { firstViewedAt: new Date() } });
       }
 
-      // Card payments are only offered if the tradie has connected their own Stripe account.
-      const cardEnabled = !!invoice.tenant.stripeAccountId;
-      const { stripeAccountId: _acct, ...tenant } = invoice.tenant;
+      // Card payments are only offered once the tradie has connected their own Stripe account
+      // AND completed onboarding (charges enabled) — otherwise the charge would fail.
+      const cardEnabled = !!invoice.tenant.stripeAccountId && invoice.tenant.stripeChargesEnabled;
+      const { stripeAccountId: _acct, stripeChargesEnabled: _ce, ...tenant } = invoice.tenant;
       const { portalToken: _, ...safeInvoice } = invoice;
       return { data: { ...safeInvoice, tenant, cardEnabled } };
     }

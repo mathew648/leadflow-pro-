@@ -468,6 +468,37 @@ export default async function integrationsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/v1/integrations/stripe/status — live Connect onboarding status (also syncs the flags)
+  fastify.get(
+    "/integrations/stripe/status",
+    { preHandler: [fastify.authenticate] },
+    async (request) => {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: request.tenantId },
+        select: { stripeAccountId: true, stripeChargesEnabled: true, stripeDetailsSubmitted: true },
+      });
+      if (!tenant?.stripeAccountId) {
+        return { data: { connected: false, chargesEnabled: false, detailsSubmitted: false } };
+      }
+      const stripe = new Stripe(config.STRIPE_SECRET_KEY ?? "");
+      try {
+        const account = await stripe.accounts.retrieve(tenant.stripeAccountId);
+        const chargesEnabled = !!account.charges_enabled;
+        const detailsSubmitted = !!account.details_submitted;
+        if (chargesEnabled !== tenant.stripeChargesEnabled || detailsSubmitted !== tenant.stripeDetailsSubmitted) {
+          await prisma.tenant.update({
+            where: { id: request.tenantId },
+            data: { stripeChargesEnabled: chargesEnabled, stripeDetailsSubmitted: detailsSubmitted },
+          });
+        }
+        return { data: { connected: true, chargesEnabled, detailsSubmitted, payoutsEnabled: !!account.payouts_enabled } };
+      } catch (err) {
+        request.log.warn({ err }, "stripe account retrieve failed");
+        return { data: { connected: true, chargesEnabled: tenant.stripeChargesEnabled, detailsSubmitted: tenant.stripeDetailsSubmitted, error: "Could not reach Stripe" } };
+      }
+    }
+  );
+
   // POST /api/v1/integrations/stripe/payment-link  — create payment link for an invoice
   fastify.post(
     "/integrations/stripe/payment-link",

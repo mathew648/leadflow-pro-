@@ -225,7 +225,9 @@ model Tenant {
   trialEndsAt         DateTime?           @map("trial_ends_at")
   onboardedAt         DateTime?           @map("onboarded_at")
   onboardingStep      String?             @db.VarChar(50) @map("onboarding_step")
-  stripeAccountId     String?             @db.VarChar(200) @map("stripe_account_id")
+  stripeAccountId       String?           @db.VarChar(200) @map("stripe_account_id")
+  stripeChargesEnabled  Boolean           @default(false) @map("stripe_charges_enabled")
+  stripeDetailsSubmitted Boolean          @default(false) @map("stripe_details_submitted")
   status              String              @default("active") @db.VarChar(20)
 
   createdAt   DateTime  @default(now()) @map("created_at")

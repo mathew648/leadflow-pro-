@@ -677,10 +677,17 @@ function IntegrationsTab() {
   });
   const connList = Array.isArray(connections) ? connections : (connections as any)?.data ?? [];
 
+  // Stripe Connect status (separate from the accounting-connection table)
+  const { data: stripeResp } = useQuery({ queryKey: ["stripe-status"], queryFn: () => api.get<any>("/integrations/stripe/status") });
+  const stripe = (stripeResp?.data ?? stripeResp) ?? {};
+
   return (
     <div className="space-y-4">
       {integrations.map((integration) => {
         const conn = connList.find((c: any) => c.provider === integration.id);
+        const isStripe = integration.id === "stripe";
+        const stripeReady = isStripe && stripe.connected && stripe.chargesEnabled;
+        const stripeIncomplete = isStripe && stripe.connected && !stripe.chargesEnabled;
         return (
           <Card key={integration.id}>
             <CardContent className="p-4">
@@ -695,7 +702,18 @@ function IntegrationsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {conn?.status === "active" ? (
+                  {stripeReady ? (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Connected · ready for payments
+                    </span>
+                  ) : stripeIncomplete ? (
+                    <>
+                      <span className="text-xs text-amber-600 font-medium">Setup incomplete</span>
+                      <Button size="sm" variant="outline" disabled={connect.isPending} onClick={() => connect.mutate("stripe")}>
+                        Finish setup
+                      </Button>
+                    </>
+                  ) : conn?.status === "active" ? (
                     <>
                       {(integration.id === "xero" || integration.id === "myob") && (
                         <Button

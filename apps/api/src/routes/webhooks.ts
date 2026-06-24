@@ -288,6 +288,19 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
           }
           break;
         }
+
+        // Connect: a connected tradie account finished/changed onboarding → sync charge readiness
+        case "account.updated": {
+          const account = event.data.object as Stripe.Account;
+          await prisma.tenant.updateMany({
+            where: { stripeAccountId: account.id },
+            data: {
+              stripeChargesEnabled: !!account.charges_enabled,
+              stripeDetailsSubmitted: !!account.details_submitted,
+            },
+          });
+          break;
+        }
       }
 
       return reply.status(200).send({ received: true });
