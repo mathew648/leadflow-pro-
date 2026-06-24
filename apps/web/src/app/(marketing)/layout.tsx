@@ -16,6 +16,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
             <Link href="/blog" className="hover:text-gray-900">Blog</Link>
             <Link href="/waitlist" className="hover:text-gray-900">Waitlist</Link>
+            <Link href="/contact" className="hover:text-gray-900">Contact</Link>
           </nav>
           <div className="flex items-center gap-3 sm:gap-4">
             <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-gray-900">Log in</Link>
@@ -48,6 +49,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
               <Link href="/blog" className="hover:text-gray-900">Blog</Link>
               <Link href="/waitlist" className="hover:text-gray-900">Waitlist</Link>
+              <Link href="/contact" className="hover:text-gray-900">Contact</Link>
               <Link href="/privacy" className="hover:text-gray-900">Privacy</Link>
               <Link href="/terms" className="hover:text-gray-900">Terms</Link>
               <Link href="/login" className="hover:text-gray-900">Log in</Link>
