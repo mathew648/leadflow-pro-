@@ -7,9 +7,9 @@ import { api, getToken } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, Download, Trash2, Plus, Mail, Users, FileText } from "lucide-react";
+import { ShieldCheck, Download, Trash2, Plus, Mail, Users, FileText, Send } from "lucide-react";
 
-type Tab = "waitlist" | "subscribers" | "blog";
+type Tab = "waitlist" | "subscribers" | "blog" | "send";
 
 async function downloadCsv(path: string, filename: string) {
   try {
@@ -47,6 +47,7 @@ export default function MarketingAdminPage() {
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: "waitlist", label: "Waitlist", icon: Users },
     { id: "subscribers", label: "Subscribers", icon: Mail },
+    { id: "send", label: "Send email", icon: Send },
     { id: "blog", label: "Blog", icon: FileText },
   ];
 
@@ -65,6 +66,7 @@ export default function MarketingAdminPage() {
         </div>
         {tab === "waitlist" && <WaitlistTab />}
         {tab === "subscribers" && <SubscribersTab />}
+        {tab === "send" && <SendEmailTab />}
         {tab === "blog" && <BlogTab />}
       </div>
     </div>
@@ -230,6 +232,56 @@ function BlogTab() {
               <button type="button" aria-label="Delete post" title="Delete" onClick={() => { if (confirm(`Delete "${p.title}"?`)) del.mutate(p.id); }} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
+      </div>
+    </div>
+  );
+}
+
+function SendEmailTab() {
+  const [audience, setAudience] = useState<"subscribers" | "waitlist" | "both">("subscribers");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+
+  const { data: subRes } = useQuery({ queryKey: ["admin-subscribers"], queryFn: () => api.get<any>("/admin/subscribers") });
+  const { data: waitRes } = useQuery({ queryKey: ["admin-waitlist"], queryFn: () => api.get<any>("/admin/waitlist") });
+  const subCount = (subRes as any)?.meta?.total ?? 0;
+  const waitCount = (waitRes as any)?.meta?.total ?? 0;
+  const recipients = audience === "subscribers" ? subCount : audience === "waitlist" ? waitCount : subCount + waitCount;
+
+  const send = useMutation({
+    mutationFn: () => api.post<any>("/admin/marketing/email", { subject, message, audience }),
+    onSuccess: (r: any) => { const q = (r?.data ?? r)?.queued ?? 0; toast({ title: `Email queued to ${q} ${q === 1 ? "person" : "people"}` }); setSubject(""); setMessage(""); },
+    onError: (e: any) => toast({ title: "Couldn't send", description: e.message, variant: "destructive" }),
+  });
+
+  const options: { id: typeof audience; label: string; count: number }[] = [
+    { id: "subscribers", label: "Newsletter subscribers", count: subCount },
+    { id: "waitlist", label: "Waitlist", count: waitCount },
+    { id: "both", label: "Everyone (deduplicated)", count: subCount + waitCount },
+  ];
+
+  return (
+    <div className="rounded-lg border p-5 space-y-4 max-w-2xl">
+      <div>
+        <p className="text-sm font-medium mb-2">Send to</p>
+        <div className="grid sm:grid-cols-3 gap-2">
+          {options.map((o) => (
+            <button type="button" key={o.id} onClick={() => setAudience(o.id)}
+              className={cn("rounded-lg border px-3 py-2.5 text-left", audience === o.id ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
+              <span className="block text-sm font-medium">{o.label}</span>
+              <span className="block text-xs text-muted-foreground">{o.count} {o.count === 1 ? "recipient" : "recipients"}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <input className={inp} placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+      <textarea className={inp + " min-h-[220px]"} placeholder="Your message. Basic HTML is supported (e.g. <p>, <a href>, <strong>). It's wrapped in the TradieJet email template automatically." value={message} onChange={(e) => setMessage(e.target.value)} />
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Will send to <strong>{recipients}</strong> {recipients === 1 ? "person" : "people"}.</p>
+        <Button type="button" disabled={send.isPending || !subject || !message || recipients === 0}
+          onClick={() => { if (confirm(`Send this email to ${recipients} ${recipients === 1 ? "person" : "people"}?`)) send.mutate(); }}>
+          <Send className="w-4 h-4 mr-1.5" /> {send.isPending ? "Sending…" : "Send email"}
+        </Button>
       </div>
     </div>
   );

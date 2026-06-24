@@ -1,6 +1,22 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { enqueueEmail } from "../lib/queue.js";
+
+const SUBSCRIBE_WELCOME = `
+<p style="font-size:16px;">Thanks for subscribing! 🎉</p>
+<p>You're now on the list for practical tips to help you win more jobs and get paid faster — built specifically for Australian &amp; New Zealand trades.</p>
+<p>No spam, ever — just the good stuff. You can unsubscribe at any time.</p>
+<p style="margin-top:24px;">— The TradieJet Team</p>`;
+
+function waitlistWelcome(name?: string | null) {
+  return `
+<p style="font-size:16px;">You're on the waitlist! 🎉</p>
+<p>Thanks for joining${name ? `, ${name}` : ""}. We're putting the finishing touches on TradieJet — the all-in-one lead, quote, job and invoice platform for AU &amp; NZ tradies.</p>
+<p>You'll be among the first to get access, and you've locked in <strong>founding-member pricing</strong>.</p>
+<p>We'll be in touch soon — keep an eye on your inbox.</p>
+<p style="margin-top:24px;">— The TradieJet Team</p>`;
+}
 
 // Public marketing-site endpoints: newsletter subscribe, waitlist, blog (read-only).
 // No auth; rate-limited. Admin views/management live in admin.ts.
@@ -17,11 +33,17 @@ export default async function marketingRoutes(fastify: FastifyInstance) {
     const email = body.email.trim().toLowerCase();
     const ip = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip;
 
+    const existing = await prisma.newsletterSubscriber.findUnique({ where: { email } });
     await prisma.newsletterSubscriber.upsert({
       where: { email },
       create: { email, source: body.source ?? "website", ipAddress: ip, status: "subscribed" },
       update: { status: "subscribed" }, // re-subscribe if they'd left
     });
+
+    // Welcome email on first signup only (fire-and-forget — never block the signup).
+    if (!existing) {
+      enqueueEmail({ to: email, subject: "Welcome to TradieJet 👋", template: "custom", data: { businessName: "TradieJet", body: SUBSCRIBE_WELCOME } }).catch(() => {});
+    }
 
     return reply.status(201).send({ data: { subscribed: true } });
   });
@@ -41,6 +63,7 @@ export default async function marketingRoutes(fastify: FastifyInstance) {
     const email = body.email.trim().toLowerCase();
     const ip = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip;
 
+    const existing = await prisma.waitlistEntry.findUnique({ where: { email } });
     const entry = await prisma.waitlistEntry.upsert({
       where: { email },
       create: {
@@ -61,6 +84,11 @@ export default async function marketingRoutes(fastify: FastifyInstance) {
         phone: body.phone,
       },
     });
+
+    // Welcome email on first signup only (fire-and-forget).
+    if (!existing) {
+      enqueueEmail({ to: email, subject: "You're on the TradieJet waitlist 🎉", template: "custom", data: { businessName: "TradieJet", body: waitlistWelcome(body.name) } }).catch(() => {});
+    }
 
     return reply.status(201).send({ data: { joined: true, id: entry.id } });
   });

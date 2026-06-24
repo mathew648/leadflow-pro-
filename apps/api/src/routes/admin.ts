@@ -315,6 +315,32 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return [header.map(csvEsc).join(","), ...rows].join("\n");
   });
 
+  // POST /api/v1/admin/marketing/email — send a promotional email to subscribers and/or waitlist
+  fastify.post("/admin/marketing/email", guard, async (request) => {
+    const body = z.object({
+      subject: z.string().min(1).max(200),
+      message: z.string().min(1), // simple HTML
+      audience: z.enum(["subscribers", "waitlist", "both"]).default("subscribers"),
+    }).parse(request.body);
+
+    const emails = new Set<string>();
+    if (body.audience === "subscribers" || body.audience === "both") {
+      const subs = await prisma.newsletterSubscriber.findMany({ where: { status: "subscribed" }, select: { email: true } });
+      subs.forEach((s) => emails.add(s.email));
+    }
+    if (body.audience === "waitlist" || body.audience === "both") {
+      const list = await prisma.waitlistEntry.findMany({ select: { email: true } });
+      list.forEach((w) => emails.add(w.email));
+    }
+
+    let queued = 0;
+    for (const to of emails) {
+      await enqueueEmail({ to, subject: body.subject, template: "custom", data: { body: body.message, businessName: "TradieJet" } });
+      queued += 1;
+    }
+    return { data: { queued, audience: body.audience } };
+  });
+
   // ─── Blog management ───
 
   const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 180);
