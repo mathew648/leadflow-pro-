@@ -259,13 +259,13 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           u.id as user_id,
           u.first_name,
           u.last_name,
-          COUNT(DISTINCT j.id) FILTER (WHERE j.status = 'completed')::int as jobs_completed,
+          COUNT(DISTINCT j.id) FILTER (WHERE j.completed_at IS NOT NULL AND j.status <> 'cancelled')::int as jobs_completed,
           ROUND(AVG(j.customer_satisfaction) FILTER (WHERE j.customer_satisfaction IS NOT NULL), 1)::float as avg_satisfaction,
           ROUND(COALESCE(SUM(te.duration_minutes) FILTER (WHERE te.duration_minutes IS NOT NULL), 0) / 60.0, 1)::float as total_hours,
           ROUND(100.0 * COUNT(j.id) FILTER (
-            WHERE j.status = 'completed'
+            WHERE j.completed_at IS NOT NULL
             AND j.actual_end <= j.scheduled_end + interval '30 minutes'
-          ) / NULLIF(COUNT(j.id) FILTER (WHERE j.status = 'completed' AND j.scheduled_end IS NOT NULL), 0), 1)::float as on_time_rate
+          ) / NULLIF(COUNT(j.id) FILTER (WHERE j.completed_at IS NOT NULL AND j.scheduled_end IS NOT NULL), 0), 1)::float as on_time_rate
         FROM users u
         LEFT JOIN jobs j ON j.lead_technician_id = u.id
           AND j.tenant_id = ${request.tenantId}::uuid

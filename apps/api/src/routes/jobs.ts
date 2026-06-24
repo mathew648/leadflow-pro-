@@ -200,6 +200,9 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
             scheduledEnd: body.scheduledEnd ? new Date(body.scheduledEnd) : undefined,
             status: "pending",
             createdById: userId,
+            // Default the assigned tradie to the creator so jobs are attributed in analytics
+            // (solo tradies always own their jobs; teams can reassign).
+            leadTechnicianId: body.leadTechnicianId ?? userId,
           },
         });
 
