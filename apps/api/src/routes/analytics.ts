@@ -48,10 +48,10 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           where: { tenantId, deletedAt: null, createdAt: { gte: prevStart, lt: startDate } },
         }),
         prisma.job.count({
-          where: { tenantId, deletedAt: null, status: "completed", completedAt: { gte: startDate } },
+          where: { tenantId, deletedAt: null, status: { notIn: ["cancelled"] }, completedAt: { gte: startDate } },
         }),
         prisma.job.count({
-          where: { tenantId, deletedAt: null, status: "completed", completedAt: { gte: prevStart, lt: startDate } },
+          where: { tenantId, deletedAt: null, status: { notIn: ["cancelled"] }, completedAt: { gte: prevStart, lt: startDate } },
         }),
         prisma.payment.aggregate({
           where: { tenantId, status: "completed", paidAt: { gte: startDate } },
@@ -91,7 +91,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         }),
         prisma.job.groupBy({
           by: ["leadTechnicianId"],
-          where: { tenantId, deletedAt: null, status: "completed", completedAt: { gte: startDate } },
+          where: { tenantId, deletedAt: null, status: { notIn: ["cancelled"] }, completedAt: { gte: startDate } },
           _count: true,
           orderBy: { _count: { leadTechnicianId: "desc" } },
           take: 5,

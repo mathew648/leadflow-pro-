@@ -364,6 +364,8 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
           ...body,
           scheduledStart: body.scheduledStart ? new Date(body.scheduledStart) : undefined,
           scheduledEnd: body.scheduledEnd ? new Date(body.scheduledEnd) : undefined,
+          // Stamp completedAt when the status is set to completed via the dropdown (analytics counts by it).
+          ...(body.status === "completed" && !job.completedAt ? { completedAt: new Date(), actualEnd: new Date() } : {}),
           ...(costsTouched ? { actualTotalCents: newLabour + newMaterials } : {}),
         },
       });
