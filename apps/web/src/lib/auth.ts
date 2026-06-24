@@ -47,6 +47,7 @@ export async function register(body: {
   abn?: string;
   phone?: string;
   country: "AU" | "NZ";
+  timezone?: string;
   tradeTypes: string[];
   accountType?: "tradie" | "non_tradie";
   referralCode?: string;
