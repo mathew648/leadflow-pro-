@@ -20,16 +20,19 @@ interface Step {
  * is done (or dismissed). Completion is derived from real data so it stays accurate.
  */
 export function OnboardingChecklist() {
-  const [dismissed, setDismissed] = useState(
-    () => typeof window !== "undefined" && window.localStorage.getItem("lfp_onboarding_dismissed") === "1"
-  );
+  const [, bump] = useState(0); // forces a re-render after dismiss
 
   const { data: tenant } = useQuery({ queryKey: ["tenant"], queryFn: () => api.get<any>("/tenant") });
   const { data: catalog } = useQuery({ queryKey: ["onboarding-catalog"], queryFn: () => api.get<any>("/catalog/items?limit=1") });
   const { data: quotes } = useQuery({ queryKey: ["onboarding-quotes"], queryFn: () => api.get<any>("/quotes?limit=1") });
   const { data: integrations } = useQuery({ queryKey: ["integrations"], queryFn: () => api.get<any>("/integrations") });
 
-  if (dismissed || !tenant) return null;
+  if (!tenant) return null;
+
+  // Dismissal is per-account (was per-browser, which hid the guide for every new account
+  // registered in a browser where it had ever been dismissed).
+  const dismissKey = `lfp_onboarding_dismissed_${(tenant as any).id}`;
+  if (typeof window !== "undefined" && window.localStorage.getItem(dismissKey) === "1") return null;
 
   // api.get unwraps the response envelope, so list calls may arrive as a raw array
   // or as { data, meta } depending on the endpoint — handle both.
@@ -94,8 +97,8 @@ export function OnboardingChecklist() {
   if (doneCount === steps.length) return null; // fully set up — hide it
 
   function dismiss() {
-    window.localStorage.setItem("lfp_onboarding_dismissed", "1");
-    setDismissed(true);
+    window.localStorage.setItem(dismissKey, "1");
+    bump((n) => n + 1);
   }
 
   return (
