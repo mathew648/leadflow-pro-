@@ -25,6 +25,9 @@ const envSchema = z.object({
 
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("TradieJet <info@tradiejet.com>"),
+  // Where contact-form + support notifications are sent. Set this in Render to an inbox you
+  // actually monitor (e.g. your real email) until the support@ mailbox is live.
+  SUPPORT_EMAIL: z.string().default("support@tradiejet.com"),
 
   VONAGE_API_KEY: z.string().optional(),
   VONAGE_API_SECRET: z.string().optional(),

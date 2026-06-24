@@ -38,7 +38,7 @@ export default function BlogPostPage() {
       </p>
       {post.coverImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={post.coverImageUrl} alt="" className="mt-8 rounded-xl w-full object-cover max-h-96" />
+        <img src={post.coverImageUrl} alt="" className="mt-8 rounded-2xl w-full aspect-[16/9] object-cover shadow-sm" />
       )}
       <div className="mt-8 text-[17px]">
         <Markdown content={post.content ?? ""} />

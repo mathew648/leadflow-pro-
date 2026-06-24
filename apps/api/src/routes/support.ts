@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 import { enqueueEmail } from "../lib/queue.js";
+import { config } from "../config.js";
 
 // ─── Support hours: 11am–7pm NZ time, Mon–Fri ───
 const SUPPORT_TZ = "Pacific/Auckland";
@@ -75,7 +76,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
 
     // For the email channel (or out-of-hours), let the team know by email too.
     enqueueEmail({
-      to: "support@tradiejet.com",
+      to: config.SUPPORT_EMAIL,
       subject: `New support ${body.channel === "email" ? "request" : "chat"}: ${body.subject}`,
       template: "custom",
       data: { businessName: "TradieJet", body: `<p><strong>${tenant?.businessName ?? "A tradie"}</strong> (${request.jwtUser.email}) opened a ${body.channel} ticket:</p><p><em>${body.subject}</em></p><p>${body.message}</p>` },

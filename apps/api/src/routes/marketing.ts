@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { enqueueEmail } from "../lib/queue.js";
+import { config } from "../config.js";
 
 const SUBSCRIBE_WELCOME = `
 <p style="font-size:16px;">Thanks for subscribing! 🎉</p>
@@ -109,7 +110,7 @@ export default async function marketingRoutes(fastify: FastifyInstance) {
 
     // Notify the team (best-effort; replies go straight back to the sender).
     enqueueEmail({
-      to: "support@tradiejet.com",
+      to: config.SUPPORT_EMAIL,
       replyTo: body.email,
       subject: `Contact form: ${body.subject || "New message"} — from ${body.name}`,
       template: "custom",

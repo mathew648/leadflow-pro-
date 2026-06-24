@@ -37,6 +37,15 @@ export function Markdown({ content }: { content: string }) {
       blocks.push(<ul key={key++} className="list-disc pl-6 my-4 space-y-1.5 text-gray-700">{items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ul>);
       continue;
     }
+    // Block image: ![alt](url) on its own line, optional *caption* line under it
+    const img = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (img) {
+      // eslint-disable-next-line @next/next/no-img-element
+      blocks.push(<img key={key++} src={img[2]} alt={img[1]} className="my-7 rounded-xl w-full object-cover" />);
+      if (img[1]) blocks.push(<p key={key++} className="-mt-5 mb-7 text-center text-xs text-gray-400">{img[1]}</p>);
+      i++; continue;
+    }
+    if (line.trim() === "---") { blocks.push(<hr key={key++} className="my-8 border-gray-200" />); i++; continue; }
     const para: string[] = [];
     while (i < lines.length && lines[i].trim() && !/^#{1,3} /.test(lines[i]) && !/^[-*] /.test(lines[i])) { para.push(lines[i]); i++; }
     blocks.push(<p key={key++} className="my-4 leading-relaxed text-gray-700">{inline(para.join(" "))}</p>);
