@@ -281,6 +281,20 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return { data: items, meta: { total, limit: q.limit, offset: q.offset } };
   });
 
+  // DELETE /api/v1/admin/subscribers/:id — remove a subscriber (spam/test)
+  fastify.delete("/admin/subscribers/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await prisma.newsletterSubscriber.delete({ where: { id } }).catch(() => null);
+    return reply.status(204).send();
+  });
+
+  // DELETE /api/v1/admin/waitlist/:id — remove a waitlist entry
+  fastify.delete("/admin/waitlist/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await prisma.waitlistEntry.delete({ where: { id } }).catch(() => null);
+    return reply.status(204).send();
+  });
+
   const csvEsc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
   // GET /api/v1/admin/export/subscribers.csv

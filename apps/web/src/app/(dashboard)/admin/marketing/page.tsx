@@ -72,9 +72,14 @@ export default function MarketingAdminPage() {
 }
 
 function WaitlistTab() {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin-waitlist"], queryFn: () => api.get<any>("/admin/waitlist") });
   const items: any[] = Array.isArray(data) ? data : (data?.data ?? []);
   const total = (data as any)?.meta?.total ?? items.length;
+  const del = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/waitlist/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-waitlist"] }),
+  });
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -86,11 +91,11 @@ function WaitlistTab() {
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr><th className="px-3 py-2">Email</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">Business</th><th className="px-3 py-2">Trade</th><th className="px-3 py-2">Country</th><th className="px-3 py-2">Joined</th></tr>
+            <tr><th className="px-3 py-2">Email</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">Business</th><th className="px-3 py-2">Trade</th><th className="px-3 py-2">Country</th><th className="px-3 py-2">Joined</th><th className="px-3 py-2"></th></tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">Loading…</td></tr>
-              : items.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No signups yet.</td></tr>
+            {isLoading ? <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">Loading…</td></tr>
+              : items.length === 0 ? <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No signups yet.</td></tr>
               : items.map((w) => (
                 <tr key={w.id} className="border-t">
                   <td className="px-3 py-2 font-medium">{w.email}</td>
@@ -99,6 +104,7 @@ function WaitlistTab() {
                   <td className="px-3 py-2">{w.trade || "—"}</td>
                   <td className="px-3 py-2">{w.country || "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{fmtDate(w.createdAt)}</td>
+                  <td className="px-3 py-2 text-right"><button type="button" aria-label="Remove entry" title="Remove" onClick={() => del.mutate(w.id)} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
           </tbody>
@@ -109,31 +115,37 @@ function WaitlistTab() {
 }
 
 function SubscribersTab() {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin-subscribers"], queryFn: () => api.get<any>("/admin/subscribers") });
   const items: any[] = Array.isArray(data) ? data : (data?.data ?? []);
   const total = (data as any)?.meta?.total ?? items.length;
+  const del = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/subscribers/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-subscribers"] }),
+  });
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-muted-foreground">{total} subscribers</p>
-        <Button size="sm" variant="outline" onClick={() => downloadCsv("/api/v1/admin/export/subscribers.csv", `tradiejet-subscribers-${new Date().toISOString().slice(0, 10)}.csv`)}>
+        <Button type="button" size="sm" variant="outline" onClick={() => downloadCsv("/api/v1/admin/export/subscribers.csv", `tradiejet-subscribers-${new Date().toISOString().slice(0, 10)}.csv`)}>
           <Download className="w-4 h-4 mr-1.5" /> Export CSV
         </Button>
       </div>
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr><th className="px-3 py-2">Email</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Subscribed</th></tr>
+            <tr><th className="px-3 py-2">Email</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Subscribed</th><th className="px-3 py-2"></th></tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">Loading…</td></tr>
-              : items.length === 0 ? <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">No subscribers yet.</td></tr>
+            {isLoading ? <tr><td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">Loading…</td></tr>
+              : items.length === 0 ? <tr><td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">No subscribers yet.</td></tr>
               : items.map((s) => (
                 <tr key={s.id} className="border-t">
                   <td className="px-3 py-2 font-medium">{s.email}</td>
                   <td className="px-3 py-2 text-muted-foreground">{s.source || "—"}</td>
                   <td className="px-3 py-2">{s.status}</td>
                   <td className="px-3 py-2 text-muted-foreground">{fmtDate(s.createdAt)}</td>
+                  <td className="px-3 py-2 text-right"><button type="button" aria-label="Remove subscriber" title="Remove" onClick={() => del.mutate(s.id)} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
           </tbody>
@@ -215,7 +227,7 @@ function BlogTab() {
               <span className={cn("text-xs font-medium px-2 py-0.5 rounded", p.status === "published" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")}>{p.status}</span>
               <button onClick={() => setEditing({ id: p.id, title: p.title, slug: p.slug, excerpt: p.excerpt || "", content: p.content, coverImageUrl: p.coverImageUrl || "", authorName: p.authorName || "", tags: (p.tags || []).join(", "), status: p.status })}
                 className="text-sm text-primary hover:underline">Edit</button>
-              <button onClick={() => { if (confirm(`Delete "${p.title}"?`)) del.mutate(p.id); }} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+              <button type="button" aria-label="Delete post" title="Delete" onClick={() => { if (confirm(`Delete "${p.title}"?`)) del.mutate(p.id); }} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
       </div>
