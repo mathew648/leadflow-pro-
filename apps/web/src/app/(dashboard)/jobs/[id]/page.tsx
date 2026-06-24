@@ -371,7 +371,7 @@ export default function JobDetailPage() {
             <Clock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
               <p className="font-semibold text-amber-900">Waiting on quote approval</p>
-              <p className="text-amber-700">Once the customer approves the quote, you can start the job, tick off tasks and add items. The quote's items will appear here automatically.</p>
+              <p className="text-amber-700">Once the customer approves the quote, you can start the job and tick off tasks. The quote's items appear in Materials automatically — you can add items and costs there any time.</p>
             </div>
           </div>
         )}
@@ -630,7 +630,7 @@ export default function JobDetailPage() {
                 <Button
                   size="sm" className="mt-2"
                   onClick={() => addMaterialMutation.mutate()}
-                  disabled={!newMaterial.name || addMaterialMutation.isPending || workLocked}
+                  disabled={!newMaterial.name || addMaterialMutation.isPending}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add item
                 </Button>
