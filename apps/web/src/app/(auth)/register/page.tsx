@@ -164,6 +164,14 @@ function RegisterForm() {
                     </button>
                   </div>
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Where's your business based?</Label>
+                  <select {...register("country")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="AU">🇦🇺 Australia</option>
+                    <option value="NZ">🇳🇿 New Zealand</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">Sets your GST rate, currency and {bizNumberLabel} field.</p>
+                </div>
                 <h2 className="font-semibold text-lg">Your details</h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -211,18 +219,9 @@ function RegisterForm() {
                   <Input type="password" placeholder="At least 8 characters" {...register("password")} />
                   {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Country</Label>
-                    <select {...register("country")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                      <option value="AU">Australia</option>
-                      <option value="NZ">New Zealand</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Phone (optional)</Label>
-                    <Input type="tel" placeholder="+61 4xx xxx xxx" {...register("phone")} />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label>Phone (optional)</Label>
+                  <Input type="tel" placeholder={country === "NZ" ? "+64 21 xxx xxxx" : "+61 4xx xxx xxx"} {...register("phone")} />
                 </div>
                 <Button type="button" className="w-full" onClick={handlePrimary} disabled={isSubmitting || working}>
                   {accountType === "tradie" ? "Next: Select Trade →" : (isSubmitting || working ? "Creating account…" : "Start free trial")}
