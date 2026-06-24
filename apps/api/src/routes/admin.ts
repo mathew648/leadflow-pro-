@@ -258,4 +258,134 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     reply.header("Content-Type", "text/csv").header("Content-Disposition", `attachment; filename="tradiejet-tenants-${new Date().toISOString().slice(0, 10)}.csv"`);
     return csv;
   });
+
+  // ─── Marketing: newsletter subscribers + waitlist ───
+
+  // GET /api/v1/admin/subscribers
+  fastify.get("/admin/subscribers", guard, async (request) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(500).default(200), offset: z.coerce.number().int().min(0).default(0) }).parse(request.query);
+    const [items, total] = await Promise.all([
+      prisma.newsletterSubscriber.findMany({ orderBy: { createdAt: "desc" }, take: q.limit, skip: q.offset }),
+      prisma.newsletterSubscriber.count(),
+    ]);
+    return { data: items, meta: { total, limit: q.limit, offset: q.offset } };
+  });
+
+  // GET /api/v1/admin/waitlist
+  fastify.get("/admin/waitlist", guard, async (request) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(500).default(200), offset: z.coerce.number().int().min(0).default(0) }).parse(request.query);
+    const [items, total] = await Promise.all([
+      prisma.waitlistEntry.findMany({ orderBy: { createdAt: "desc" }, take: q.limit, skip: q.offset }),
+      prisma.waitlistEntry.count(),
+    ]);
+    return { data: items, meta: { total, limit: q.limit, offset: q.offset } };
+  });
+
+  const csvEsc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+  // GET /api/v1/admin/export/subscribers.csv
+  fastify.get("/admin/export/subscribers.csv", guard, async (_request, reply) => {
+    const subs = await prisma.newsletterSubscriber.findMany({ orderBy: { createdAt: "desc" } });
+    const header = ["Email", "Source", "Status", "Subscribed"];
+    const rows = subs.map((s) => [s.email, s.source, s.status, s.createdAt.toISOString().slice(0, 10)].map(csvEsc).join(","));
+    reply.header("Content-Type", "text/csv").header("Content-Disposition", `attachment; filename="tradiejet-subscribers-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return [header.map(csvEsc).join(","), ...rows].join("\n");
+  });
+
+  // GET /api/v1/admin/export/waitlist.csv
+  fastify.get("/admin/export/waitlist.csv", guard, async (_request, reply) => {
+    const list = await prisma.waitlistEntry.findMany({ orderBy: { createdAt: "desc" } });
+    const header = ["Email", "Name", "Business", "Trade", "Country", "Phone", "Status", "Joined"];
+    const rows = list.map((w) => [w.email, w.name, w.businessName, w.trade, w.country, w.phone, w.status, w.createdAt.toISOString().slice(0, 10)].map(csvEsc).join(","));
+    reply.header("Content-Type", "text/csv").header("Content-Disposition", `attachment; filename="tradiejet-waitlist-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return [header.map(csvEsc).join(","), ...rows].join("\n");
+  });
+
+  // ─── Blog management ───
+
+  const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 180);
+
+  // GET /api/v1/admin/blog — all posts incl. drafts
+  fastify.get("/admin/blog", guard, async () => {
+    const posts = await prisma.blogPost.findMany({ orderBy: [{ status: "asc" }, { createdAt: "desc" }] });
+    return { data: posts };
+  });
+
+  // POST /api/v1/admin/blog
+  fastify.post("/admin/blog", guard, async (request, reply) => {
+    const body = z.object({
+      title: z.string().min(1).max(255),
+      slug: z.string().max(200).optional(),
+      excerpt: z.string().max(500).optional(),
+      content: z.string().min(1),
+      coverImageUrl: z.string().url().optional().or(z.literal("")),
+      authorName: z.string().max(150).optional(),
+      tags: z.array(z.string()).optional(),
+      status: z.enum(["draft", "published"]).default("draft"),
+    }).parse(request.body);
+
+    let slug = body.slug?.trim() ? slugify(body.slug) : slugify(body.title);
+    if (await prisma.blogPost.findUnique({ where: { slug } })) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+
+    const post = await prisma.blogPost.create({
+      data: {
+        title: body.title,
+        slug,
+        excerpt: body.excerpt,
+        content: body.content,
+        coverImageUrl: body.coverImageUrl || null,
+        authorName: body.authorName,
+        tags: body.tags ?? [],
+        status: body.status,
+        publishedAt: body.status === "published" ? new Date() : null,
+      },
+    });
+    return reply.status(201).send({ data: post });
+  });
+
+  // PATCH /api/v1/admin/blog/:id
+  fastify.patch("/admin/blog/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      title: z.string().min(1).max(255).optional(),
+      slug: z.string().max(200).optional(),
+      excerpt: z.string().max(500).optional(),
+      content: z.string().min(1).optional(),
+      coverImageUrl: z.string().url().optional().or(z.literal("")),
+      authorName: z.string().max(150).optional(),
+      tags: z.array(z.string()).optional(),
+      status: z.enum(["draft", "published"]).optional(),
+    }).parse(request.body);
+
+    const existing = await prisma.blogPost.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Post not found" } });
+
+    // Set publishedAt the first time it goes live; clear it if reverted to draft.
+    const publishedAt = body.status === "published" && !existing.publishedAt ? new Date()
+      : body.status === "draft" ? null
+      : existing.publishedAt;
+
+    const post = await prisma.blogPost.update({
+      where: { id },
+      data: {
+        title: body.title,
+        slug: body.slug ? slugify(body.slug) : undefined,
+        excerpt: body.excerpt,
+        content: body.content,
+        coverImageUrl: body.coverImageUrl === "" ? null : body.coverImageUrl,
+        authorName: body.authorName,
+        tags: body.tags,
+        status: body.status,
+        publishedAt,
+      },
+    });
+    return { data: post };
+  });
+
+  // DELETE /api/v1/admin/blog/:id
+  fastify.delete("/admin/blog/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await prisma.blogPost.delete({ where: { id } }).catch(() => null);
+    return reply.status(204).send();
+  });
 }

@@ -1500,3 +1500,52 @@ model RequirementRequest {
   @@index([customerId])
   @@map("requirement_requests")
 }
+
+// ─── Marketing site: newsletter subscribers, waitlist, blog ───
+
+model NewsletterSubscriber {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique @db.VarChar(255)
+  source    String?  @db.VarChar(100) // e.g. "footer", "blog", "homepage"
+  status    String   @default("subscribed") @db.VarChar(20) // subscribed | unsubscribed
+  ipAddress String?  @db.VarChar(64) @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("newsletter_subscribers")
+}
+
+model WaitlistEntry {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  name         String?  @db.VarChar(150)
+  businessName String?  @db.VarChar(200) @map("business_name")
+  trade        String?  @db.VarChar(100)
+  country      String?  @db.VarChar(2)
+  phone        String?  @db.VarChar(30)
+  source       String?  @db.VarChar(100)
+  status       String   @default("waiting") @db.VarChar(20) // waiting | invited | converted
+  ipAddress    String?  @db.VarChar(64) @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("waitlist_entries")
+}
+
+model BlogPost {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String    @unique @db.VarChar(200)
+  title         String    @db.VarChar(255)
+  excerpt       String?   @db.VarChar(500)
+  content       String    // markdown / HTML body
+  coverImageUrl String?   @db.VarChar(500) @map("cover_image_url")
+  authorName    String?   @db.VarChar(150) @map("author_name")
+  tags          String[]  @default([])
+  status        String    @default("draft") @db.VarChar(20) // draft | published
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, publishedAt])
+  @@map("blog_posts")
+}

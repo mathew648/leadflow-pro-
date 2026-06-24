@@ -35,6 +35,7 @@ import auditLogsRoutes from "./routes/audit-logs.js";
 import billingRoutes from "./routes/billing.js";
 import adminRoutes from "./routes/admin.js";
 import lookupRoutes from "./routes/lookup.js";
+import marketingRoutes from "./routes/marketing.js";
 import pushRoutes from "./routes/push.js";
 
 export interface BuildAppOptions {
@@ -225,6 +226,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await fastify.register(billingRoutes, v1Prefix);
   await fastify.register(adminRoutes, v1Prefix);
   await fastify.register(lookupRoutes, v1Prefix);
+  await fastify.register(marketingRoutes, v1Prefix);
   await fastify.register(pushRoutes, v1Prefix);
 
   fastify.setNotFoundHandler((request, reply) => {

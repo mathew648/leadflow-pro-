@@ -97,6 +97,9 @@ export default function AdminPage() {
     <div>
       <Topbar title="Platform Admin" />
       <div className="p-4 lg:p-6 space-y-6">
+        <div className="flex justify-end -mb-2">
+          <a href="/admin/marketing" className="text-sm font-medium text-primary hover:underline">Marketing → waitlist · subscribers · blog</a>
+        </div>
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((m) => (
