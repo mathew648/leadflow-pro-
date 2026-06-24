@@ -704,7 +704,7 @@ function ProfitCard({ job, jobId, onAddCosts }: { job: any; jobId: string; onAdd
       <CardHeader className="pb-2 flex-row items-center justify-between">
         <CardTitle className="text-sm font-medium">💰 Job profit</CardTitle>
         {!editing && (
-          <button onClick={() => { setMaterials(String((c.materialsCostCents || 0) / 100)); setLabour(String((c.labourCostCents || 0) / 100)); setEditing(true); }} className="text-xs text-primary hover:underline">Edit costs</button>
+          <button onClick={onAddCosts} className="text-xs text-primary hover:underline">Edit costs →</button>
         )}
       </CardHeader>
       <CardContent>
