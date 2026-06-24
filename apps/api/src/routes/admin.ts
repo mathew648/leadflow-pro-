@@ -342,6 +342,23 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return { data: { queued, audience: body.audience } };
   });
 
+  // GET /api/v1/admin/contact-messages
+  fastify.get("/admin/contact-messages", guard, async (request) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(500).default(200), offset: z.coerce.number().int().min(0).default(0) }).parse(request.query);
+    const [items, total] = await Promise.all([
+      prisma.contactMessage.findMany({ orderBy: { createdAt: "desc" }, take: q.limit, skip: q.offset }),
+      prisma.contactMessage.count(),
+    ]);
+    return { data: items, meta: { total, limit: q.limit, offset: q.offset } };
+  });
+
+  // DELETE /api/v1/admin/contact-messages/:id
+  fastify.delete("/admin/contact-messages/:id", guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await prisma.contactMessage.delete({ where: { id } }).catch(() => null);
+    return reply.status(204).send();
+  });
+
   // ─── Blog management ───
 
   const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 180);

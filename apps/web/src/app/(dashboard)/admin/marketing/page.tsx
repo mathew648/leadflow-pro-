@@ -7,9 +7,9 @@ import { api, getToken } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, Download, Trash2, Plus, Mail, Users, FileText, Send } from "lucide-react";
+import { ShieldCheck, Download, Trash2, Plus, Mail, Users, FileText, Send, Inbox } from "lucide-react";
 
-type Tab = "waitlist" | "subscribers" | "blog" | "send";
+type Tab = "waitlist" | "subscribers" | "blog" | "send" | "contact";
 
 async function downloadCsv(path: string, filename: string) {
   try {
@@ -47,6 +47,7 @@ export default function MarketingAdminPage() {
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: "waitlist", label: "Waitlist", icon: Users },
     { id: "subscribers", label: "Subscribers", icon: Mail },
+    { id: "contact", label: "Contact", icon: Inbox },
     { id: "send", label: "Send email", icon: Send },
     { id: "blog", label: "Blog", icon: FileText },
   ];
@@ -66,6 +67,7 @@ export default function MarketingAdminPage() {
         </div>
         {tab === "waitlist" && <WaitlistTab />}
         {tab === "subscribers" && <SubscribersTab />}
+        {tab === "contact" && <ContactTab />}
         {tab === "send" && <SendEmailTab />}
         {tab === "blog" && <BlogTab />}
       </div>
@@ -153,6 +155,42 @@ function SubscribersTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function ContactTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["admin-contact"], queryFn: () => api.get<any>("/admin/contact-messages") });
+  const items: any[] = Array.isArray(data) ? data : (data?.data ?? []);
+  const total = (data as any)?.meta?.total ?? items.length;
+  const del = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/contact-messages/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-contact"] }),
+  });
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground mb-3">{total} message{total === 1 ? "" : "s"} from the contact form</p>
+      {isLoading ? <div className="rounded-lg border p-8 text-center text-muted-foreground">Loading…</div>
+        : items.length === 0 ? <div className="rounded-lg border p-8 text-center text-muted-foreground">No messages yet.</div>
+        : <div className="space-y-3">
+            {items.map((m) => (
+              <div key={m.id} className="rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{m.name} <a href={`mailto:${m.email}`} className="text-sm font-normal text-primary hover:underline">&lt;{m.email}&gt;</a></p>
+                    {m.subject && <p className="text-sm font-medium text-muted-foreground">{m.subject}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground">{fmtDate(m.createdAt)}</span>
+                    <button type="button" aria-label="Delete" title="Delete" onClick={() => del.mutate(m.id)} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm whitespace-pre-wrap text-gray-700">{m.message}</p>
+                <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + (m.subject || "your message"))}`} className="mt-2 inline-block text-sm text-primary hover:underline">Reply →</a>
+              </div>
+            ))}
+          </div>}
     </div>
   );
 }

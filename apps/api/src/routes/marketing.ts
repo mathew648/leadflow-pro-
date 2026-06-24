@@ -93,6 +93,32 @@ export default async function marketingRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ data: { joined: true, id: entry.id } });
   });
 
+  // POST /api/v1/public/contact — contact-us form submission
+  fastify.post("/public/contact", publicLimit, async (request, reply) => {
+    const body = z.object({
+      name: z.string().min(1).max(150),
+      email: z.string().email(),
+      subject: z.string().max(255).optional(),
+      message: z.string().min(1).max(5000),
+    }).parse(request.body);
+
+    const ip = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? request.ip;
+    await prisma.contactMessage.create({
+      data: { name: body.name, email: body.email.trim().toLowerCase(), subject: body.subject, message: body.message, ipAddress: ip },
+    });
+
+    // Notify the team (best-effort; replies go straight back to the sender).
+    enqueueEmail({
+      to: "support@tradiejet.com",
+      replyTo: body.email,
+      subject: `Contact form: ${body.subject || "New message"} — from ${body.name}`,
+      template: "custom",
+      data: { businessName: "TradieJet", body: `<p><strong>${body.name}</strong> (${body.email}) wrote:</p><p>${body.message.replace(/\n/g, "<br>")}</p>` },
+    }).catch(() => {});
+
+    return reply.status(201).send({ data: { sent: true } });
+  });
+
   // GET /api/v1/public/blog — list published posts (newest first)
   fastify.get("/public/blog", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request) => {
     const query = z.object({

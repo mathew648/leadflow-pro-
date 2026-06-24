@@ -1610,3 +1610,17 @@ model SupportMessage {
   @@index([ticketId, createdAt])
   @@map("support_messages")
 }
+
+model ContactMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(150)
+  email     String   @db.VarChar(255)
+  subject   String?  @db.VarChar(255)
+  message   String
+  status    String   @default("new") @db.VarChar(20) // new | read
+  ipAddress String?  @db.VarChar(64) @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("contact_messages")
+}
