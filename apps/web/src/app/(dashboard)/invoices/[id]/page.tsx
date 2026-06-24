@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Send, DollarSign, Download, ExternalLink,
-  CheckCircle, Clock, AlertCircle, XCircle, FileText, Paperclip,
+  CheckCircle, Clock, AlertCircle, XCircle, FileText, Paperclip, CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { Topbar } from "@/components/layout/topbar";
@@ -50,6 +50,20 @@ export default function InvoiceDetailPage() {
   });
 
   const invoice = (data as any)?.data ?? data;
+
+  // Prompt the tradie to connect Stripe so customers can pay this invoice by card.
+  const { data: stripeResp } = useQuery({ queryKey: ["stripe-status"], queryFn: () => api.get<any>("/integrations/stripe/status") });
+  const stripe = (stripeResp as any)?.data ?? stripeResp;
+  const stripeReady = !!stripe?.connected && !!stripe?.chargesEnabled;
+  const connectStripe = useMutation({
+    mutationFn: () => api.get<any>("/integrations/stripe/setup"),
+    onSuccess: (r: any) => {
+      const url = (r?.data ?? r)?.url;
+      if (url) window.location.href = url;
+      else toast({ title: "Couldn't start Stripe setup", variant: "destructive" });
+    },
+    onError: (e: any) => toast({ title: e.message ?? "Couldn't start Stripe setup", variant: "destructive" }),
+  });
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -132,6 +146,22 @@ export default function InvoiceDetailPage() {
       <Topbar title={`Invoice ${invoice.invoiceNumber}`} />
 
       <div className="p-4 lg:p-6 max-w-5xl mx-auto space-y-5">
+        {stripeResp && !stripeReady && invoice.status !== "paid" && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+            <CreditCard className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-900">
+                {stripe?.connected ? "Finish your Stripe setup to take card payments" : "Connect Stripe to let customers pay by card"}
+              </p>
+              <p className="text-amber-700 text-xs mt-0.5">
+                Card payments go straight to your own Stripe account. Until then, customers can still pay by bank transfer.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" disabled={connectStripe.isPending} onClick={() => connectStripe.mutate()} className="flex-shrink-0">
+              {connectStripe.isPending ? "…" : stripe?.connected ? "Finish setup" : "Connect Stripe"}
+            </Button>
+          </div>
+        )}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <Link href="/invoices" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4" /> All Invoices
