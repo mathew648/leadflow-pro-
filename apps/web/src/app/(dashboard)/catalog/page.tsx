@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Package, Edit2, ToggleLeft, ToggleRight, Upload } from "lucide-react";
+import { Search, Plus, Package, Edit2, ToggleLeft, ToggleRight, Upload, Trash2 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,12 @@ export default function CatalogPage() {
   const toggleMutation = useMutation({
     mutationFn: (item: any) => api.patch(`/catalog/items/${item.id}`, { isActive: !item.isActive }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["catalog-items"] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/catalog/items/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["catalog-items"] }); toast({ title: "Item deleted" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -280,6 +286,14 @@ export default function CatalogPage() {
                             {item.isActive
                               ? <ToggleRight className="w-4 h-4 text-green-600" />
                               : <ToggleLeft className="w-4 h-4" />}
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete item"
+                            onClick={() => { if (window.confirm(`Delete "${item.name}" from the price book?`)) deleteMutation.mutate(item.id); }}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
