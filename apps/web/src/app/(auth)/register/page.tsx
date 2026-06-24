@@ -86,6 +86,7 @@ function RegisterForm() {
     try {
       const { user } = await registerUser({
         ...values,
+        timezone: values.country === "NZ" ? "Pacific/Auckland" : "Australia/Sydney",
         tradeTypes: accountType === "tradie" ? selectedTrades : [],
         accountType,
         referralCode: refCode,

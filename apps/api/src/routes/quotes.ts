@@ -346,6 +346,11 @@ export default async function quotesRoutes(fastify: FastifyInstance) {
         data: { status: "sent", sentAt: new Date() },
       });
 
+      // Mirror the quote's items onto the linked job's materials now, so the tradie can enter
+      // costs and see profit immediately — without waiting for the customer to approve.
+      const linkedJob = await prisma.job.findFirst({ where: { quoteId: quote.id, deletedAt: null }, select: { id: true } });
+      if (linkedJob) await syncQuoteLineItemsToJobMaterials(prisma, quote, linkedJob.id);
+
       // Send branded email with portal link (logged to Message history)
       if (quote.customer.email) {
         await sendBrandedEmail({
