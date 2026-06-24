@@ -40,6 +40,38 @@ function toLocalInput(iso?: string | null): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
+// Per-material unit-cost editor with an explicit Save button (enabled only when changed).
+function MaterialCostEditor({ material, onSave, saving }: { material: any; onSave: (cents: number) => void; saving?: boolean }) {
+  const [val, setVal] = useState(material.unitCostCents ? (material.unitCostCents / 100).toFixed(2) : "");
+  const cents = Math.round((Number(val) || 0) * 100);
+  const dirty = cents !== (material.unitCostCents ?? 0);
+  return (
+    <>
+      <span className="text-[11px] text-muted-foreground">cost</span>
+      <div className="relative">
+        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+        <input
+          type="number" min="0" step="0.01" placeholder="0.00"
+          aria-label={`Unit cost for ${material.name}`}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && dirty) onSave(cents); }}
+          className={cn("w-20 pl-5 pr-1.5 py-1 text-sm border rounded text-right focus:outline-none focus:ring-1 focus:ring-primary",
+            !material.unitCostCents && "border-amber-300 bg-amber-50")}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => onSave(cents)}
+        disabled={!dirty || saving}
+        className="px-2 py-1 text-xs rounded bg-primary text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {saving ? "…" : "Save"}
+      </button>
+    </>
+  );
+}
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -551,24 +583,13 @@ export default function JobDetailPage() {
                     <p className="text-sm font-medium">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{m.quantity} {m.unit ?? "ea"} · sell {formatCurrency(m.unitPriceCents)}</p>
                   </div>
-                  {/* Inline editable cost — type a unit cost, profit updates on blur */}
+                  {/* Per-item cost with an explicit Save button (type cost → Save → profit updates) */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-[11px] text-muted-foreground">cost</span>
-                    <div className="relative">
-                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
-                      <input
-                        type="number" min="0" step="0.01" placeholder="0.00"
-                        aria-label={`Unit cost for ${m.name}`}
-                        defaultValue={m.unitCostCents ? (m.unitCostCents / 100).toFixed(2) : ""}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                        onBlur={(e) => {
-                          const c = Math.round((Number(e.target.value) || 0) * 100);
-                          if (c !== m.unitCostCents) updateMaterialMutation.mutate({ materialId: m.id, unitCostCents: c });
-                        }}
-                        className={cn("w-20 pl-5 pr-1.5 py-1 text-sm border rounded text-right focus:outline-none focus:ring-1 focus:ring-primary",
-                          !m.unitCostCents && "border-amber-300 bg-amber-50")}
-                      />
-                    </div>
+                    <MaterialCostEditor
+                      material={m}
+                      saving={updateMaterialMutation.isPending}
+                      onSave={(cents) => updateMaterialMutation.mutate({ materialId: m.id, unitCostCents: cents })}
+                    />
                     <button type="button" onClick={() => deleteMaterialMutation.mutate(m.id)} aria-label="Remove item"
                       className="p-1 text-muted-foreground hover:text-red-500">
                       <Trash2 className="w-3.5 h-3.5" />
@@ -711,22 +732,22 @@ function ProfitCard({ job, jobId, onAddCosts }: { job: any; jobId: string; onAdd
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div className="rounded-lg bg-gray-50 p-3">
             <p className="text-xs text-muted-foreground">Revenue <span className="text-[9px]">(ex GST)</span></p>
-            <p className="font-bold text-gray-900">{formatCurrency(revenue / 100)}</p>
+            <p className="font-bold text-gray-900">{formatCurrency(revenue)}</p>
             <p className="text-[10px] text-muted-foreground">{c.revenueSource === "invoice" ? "invoiced" : "quoted"}</p>
           </div>
           <div className="rounded-lg bg-gray-50 p-3">
             <p className="text-xs text-muted-foreground">Materials</p>
-            {editing ? <input type="number" className={box + " text-center mt-1"} value={materials} onChange={(e) => setMaterials(e.target.value)} /> : <p className="font-bold text-gray-900">{formatCurrency(matC / 100)}</p>}
+            {editing ? <input type="number" className={box + " text-center mt-1"} value={materials} onChange={(e) => setMaterials(e.target.value)} /> : <p className="font-bold text-gray-900">{formatCurrency(matC)}</p>}
             {!editing && <p className="text-[10px] text-muted-foreground">{c.materialsAuto ? "from materials" : "estimate"}</p>}
           </div>
           <div className="rounded-lg bg-gray-50 p-3">
             <p className="text-xs text-muted-foreground">Labour</p>
-            {editing ? <input type="number" className={box + " text-center mt-1"} value={labour} onChange={(e) => setLabour(e.target.value)} /> : <p className="font-bold text-gray-900">{formatCurrency(labC / 100)}</p>}
+            {editing ? <input type="number" className={box + " text-center mt-1"} value={labour} onChange={(e) => setLabour(e.target.value)} /> : <p className="font-bold text-gray-900">{formatCurrency(labC)}</p>}
             {!editing && <p className="text-[10px] text-muted-foreground">{c.labourAuto ? "from time entries" : "estimate"}</p>}
           </div>
           <div className={cn("rounded-lg p-3", profit >= 0 ? "bg-green-50" : "bg-red-50")}>
             <p className="text-xs text-muted-foreground">Profit</p>
-            <p className={cn("font-bold", profitColor)}>{formatCurrency(profit / 100)}</p>
+            <p className={cn("font-bold", profitColor)}>{formatCurrency(profit)}</p>
             <p className={cn("text-[10px] font-medium", profitColor)}>{margin}% margin</p>
           </div>
         </div>
