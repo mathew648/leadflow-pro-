@@ -269,8 +269,8 @@ export default async function catalogRoutes(fastify: FastifyInstance) {
         prisma.catalogItem.count({ where }),
       ]);
 
-      // Map internal sell/cost fields to the unitPrice/unitCost names the client uses.
-      const mapped = items.map((i: any) => ({ ...i, unitPriceCents: i.sellPriceCents, unitCostCents: i.costPriceCents }));
+      // Map internal sell/cost/active fields to the unitPrice/unitCost/isActive names the client uses.
+      const mapped = items.map((i: any) => ({ ...i, unitPriceCents: i.sellPriceCents, unitCostCents: i.costPriceCents, isActive: i.active }));
       return { data: mapped, meta: { total, limit: query.limit, offset: query.offset } };
     }
   );
