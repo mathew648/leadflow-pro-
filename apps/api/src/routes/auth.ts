@@ -166,9 +166,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const body = registerSchema.parse(request.body);
 
-      // Check if email already registered
+      // Check if email already registered (ignore soft-deleted accounts so a deleted
+      // tester can sign up again with the same email — email is unique per-tenant).
       const existing = await prisma.user.findFirst({
-        where: { email: body.email.toLowerCase() },
+        where: { email: body.email.toLowerCase(), deletedAt: null },
       });
 
       if (existing) {
