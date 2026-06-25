@@ -495,4 +495,15 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     await prisma.supportAgent.delete({ where: { id } }).catch(() => null);
     return reply.status(204).send();
   });
+
+  // POST /api/v1/admin/users/reset-password — platform admin resets a tenant user's password
+  // (also useful for unlocking tradies who are locked out, until self-serve reset ships).
+  fastify.post("/admin/users/reset-password", guard, async (request, reply) => {
+    const body = z.object({ email: z.string().email(), password: z.string().min(8) }).parse(request.body);
+    const email = body.email.trim().toLowerCase();
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+    if (!user) return reply.status(404).send({ error: { code: "NOT_FOUND", message: "No user with that email" } });
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(body.password, 12) } });
+    return { data: { reset: true, email } };
+  });
 }

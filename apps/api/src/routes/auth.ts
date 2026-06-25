@@ -451,6 +451,47 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /api/v1/auth/forgot-password — email a reset link (always 200, never reveals if the email exists)
+  fastify.post("/auth/forgot-password", { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } }, async (request) => {
+    const { email } = z.object({ email: z.string().email() }).parse(request.body);
+    const user = await prisma.user.findFirst({
+      where: { email: email.trim().toLowerCase(), deletedAt: null },
+      include: { tenant: true },
+    });
+    if (user) {
+      const token = fastify.jwt.sign({ sub: user.id, tid: user.tenantId, purpose: "pwreset" } as any, { expiresIn: "1h" });
+      const link = `${config.APP_URL}/reset-password?token=${token}`;
+      sendBrandedEmail({
+        tenantId: user.tenantId,
+        tenant: user.tenant,
+        to: user.email,
+        subject: "Reset your TradieJet password",
+        template: "custom",
+        data: {
+          businessName: "TradieJet",
+          body: `<p>Hi ${user.firstName ?? "there"},</p><p>We received a request to reset your TradieJet password. Click the button below to choose a new one — this link expires in 1 hour.</p><p style="text-align:center;margin:28px 0;"><a href="${link}" style="background:#2563EB;color:#fff;padding:13px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Reset my password</a></p><p style="font-size:13px;color:#6B7280;">If you didn't request this, you can safely ignore this email — your password won't change.</p>`,
+        },
+      }).catch(() => {});
+    }
+    return { data: { sent: true } };
+  });
+
+  // POST /api/v1/auth/reset-password — set a new password from a valid reset token
+  fastify.post("/auth/reset-password", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (request, reply) => {
+    const body = z.object({ token: z.string().min(10), password: z.string().min(8).max(200) }).parse(request.body);
+    let payload: any;
+    try { payload = fastify.jwt.verify(body.token); } catch {
+      return reply.status(410).send({ error: { code: "RESET_INVALID", message: "This reset link is invalid or has expired. Please request a new one." } });
+    }
+    if (payload?.purpose !== "pwreset") {
+      return reply.status(400).send({ error: { code: "RESET_INVALID", message: "Invalid reset link." } });
+    }
+    const user = await prisma.user.findFirst({ where: { id: payload.sub, deletedAt: null } });
+    if (!user) return reply.status(404).send({ error: { code: "RESET_INVALID", message: "Account not found." } });
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(body.password, 12) } });
+    return { data: { reset: true } };
+  });
+
   // POST /api/v1/auth/refresh
   fastify.post("/auth/refresh", async (request, reply) => {
     const refreshToken =
