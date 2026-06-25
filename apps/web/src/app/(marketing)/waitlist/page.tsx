@@ -49,7 +49,7 @@ export default function WaitlistPage() {
     <div className="mx-auto max-w-5xl px-4 py-12 sm:py-16 grid lg:grid-cols-2 gap-12 items-start">
       <div>
         <span className="inline-block rounded-full bg-brand-50 text-brand-700 text-xs font-semibold px-3 py-1">Early access</span>
-        <h1 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight">Join the TradieJet waitlist</h1>
+        <h1 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight">Join the Tradie<span className="text-brand-600">Jet</span> waitlist</h1>
         <p className="mt-4 text-gray-600">Be first in line for the all-in-one lead &amp; job management platform built for AU &amp; NZ trades. Waitlist members get early access and a launch discount.</p>
         <ul className="mt-6 space-y-3 text-sm text-gray-700">
           {["Capture and chase your own leads", "Quotes, jobs, invoices & card payments in one place", "GST-ready for Australia & New Zealand", "Founding-member pricing locked in"].map((t) => (
@@ -62,7 +62,7 @@ export default function WaitlistPage() {
         <div className="grid grid-cols-2 gap-3">
           <Field label="Your name"><input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Jane Smith" /></Field>
           <Field label="Country">
-            <select className={inputCls} value={form.country} onChange={(e) => set("country", e.target.value)}>
+            <select aria-label="Country" className={inputCls} value={form.country} onChange={(e) => set("country", e.target.value)}>
               <option value="AU">🇦🇺 Australia</option>
               <option value="NZ">🇳🇿 New Zealand</option>
             </select>
@@ -72,7 +72,7 @@ export default function WaitlistPage() {
         <Field label="Business name"><input className={inputCls} value={form.businessName} onChange={(e) => set("businessName", e.target.value)} placeholder="Smith Plumbing" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Trade">
-            <select className={inputCls} value={form.trade} onChange={(e) => set("trade", e.target.value)}>
+            <select aria-label="Trade" className={inputCls} value={form.trade} onChange={(e) => set("trade", e.target.value)}>
               <option value="">Select…</option>
               {TRADES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
