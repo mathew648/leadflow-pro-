@@ -9,7 +9,7 @@ import { api, getToken } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, Send, Download, X, Mail, MessageCircle, Ban, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Send, Download, X, Mail, MessageCircle, Ban, CheckCircle2, Trash2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 function timeAgo(iso?: string | null): string {
@@ -242,6 +242,11 @@ function TenantDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     onSuccess: () => { toast({ title: "Account updated" }); qc.invalidateQueries({ queryKey: ["admin-tenant", id] }); qc.invalidateQueries({ queryKey: ["admin-tenants"] }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+  const deleteTenant = useMutation({
+    mutationFn: () => api.delete(`/admin/tenants/${id}`),
+    onSuccess: () => { toast({ title: "Demo account deleted" }); qc.invalidateQueries({ queryKey: ["admin-tenants"] }); onClose(); },
+    onError: (e: any) => toast({ title: "Couldn't delete", description: e.message, variant: "destructive" }),
+  });
 
   const isSuspended = t.status === "suspended";
   const Metric = ({ label, value }: { label: string; value: any }) => (
@@ -266,9 +271,16 @@ function TenantDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium capitalize", STATUS_COLORS[t.subscription?.status ?? t.subscriptionStatus] ?? "bg-gray-100")}>
               {t.subscription?.tier ?? "—"} · {t.subscriptionStatus}
             </span>
-            <Button variant={isSuspended ? "default" : "outline"} size="sm" onClick={() => suspend.mutate(!isSuspended)} disabled={suspend.isPending}>
-              {isSuspended ? <><CheckCircle2 className="w-4 h-4 mr-1.5" /> Reactivate</> : <><Ban className="w-4 h-4 mr-1.5" /> Suspend</>}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant={isSuspended ? "default" : "outline"} size="sm" onClick={() => suspend.mutate(!isSuspended)} disabled={suspend.isPending}>
+                {isSuspended ? <><CheckCircle2 className="w-4 h-4 mr-1.5" /> Reactivate</> : <><Ban className="w-4 h-4 mr-1.5" /> Suspend</>}
+              </Button>
+              <Button variant="outline" size="sm" disabled={deleteTenant.isPending}
+                onClick={() => { if (confirm(`Delete the demo account "${t.businessName}"? This hides it and blocks its logins (reversible).`)) deleteTenant.mutate(); }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+                <Trash2 className="w-4 h-4 mr-1.5" /> Delete
+              </Button>
+            </div>
           </div>
 
           {/* Metrics */}

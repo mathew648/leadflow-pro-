@@ -236,6 +236,18 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return { data: { id, status: suspend ? "suspended" : "active" } };
   });
 
+  // DELETE /api/v1/admin/tenants/:id — soft-delete a (demo) account: hide it and block its logins.
+  // Reversible by clearing deletedAt; intended for clearing demo accounts before launch.
+  fastify.delete("/admin/tenants/:id", guard, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.user.updateMany({ where: { tenantId: id }, data: { deletedAt: now } }),
+      prisma.tenant.update({ where: { id }, data: { deletedAt: now, status: "deleted" } }),
+    ]);
+    return reply.status(204).send();
+  });
+
   // GET /api/v1/admin/export/tenants.csv — download all tradie accounts.
   fastify.get("/admin/export/tenants.csv", guard, async (_request, reply) => {
     const tenants = await prisma.tenant.findMany({
