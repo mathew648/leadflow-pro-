@@ -1,5 +1,7 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import type { ComponentType, CSSProperties } from "react";
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 import {
   Zap, Inbox, FileText, CalendarCheck, CreditCard, Bot, BarChart3,
   ArrowRight, ArrowDown, MapPin, Smartphone, ShieldCheck, Star, Globe,
@@ -80,9 +82,39 @@ const VALUES = [
   { icon: ShieldCheck, title: "Your data, your branding", desc: "Your logo on every quote and invoice. Your customer list stays yours — always." },
 ];
 
+export const metadata: Metadata = {
+  alternates: { canonical: SITE_URL },
+};
+
+// SoftwareApplication schema — tells Google this is a business app with a price, eligible for
+// rich results. FAQPage schema is built from the on-page FAQ so it can win an expandable snippet.
+const softwareJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: SITE_NAME,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web, iOS, Android",
+  description: SITE_DESCRIPTION,
+  url: SITE_URL,
+  areaServed: ["AU", "NZ"],
+  offers: { "@type": "Offer", price: "20", priceCurrency: "AUD" },
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQS.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
+
 export default function MarketingHome() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "32px 32px" }} />

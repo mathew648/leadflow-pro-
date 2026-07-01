@@ -1,15 +1,37 @@
-"use client";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import type { Metadata } from "next";
 import { SubscribeForm } from "@/components/subscribe-form";
+import { SERVER_API_BASE, SITE_URL } from "@/lib/site";
 
-export default function BlogIndexPage() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["public-blog"],
-    queryFn: () => api.get<any>("/public/blog?limit=50"),
-  });
-  const posts: any[] = Array.isArray(data) ? data : (data?.data ?? []);
+export const metadata: Metadata = {
+  title: "Blog — Tips & guides for AU/NZ trades · TradieJet",
+  description:
+    "Practical tips, guides and updates to help Australian & New Zealand trades win more work, quote faster and get paid on time.",
+  alternates: { canonical: `${SITE_URL}/blog` },
+  openGraph: {
+    type: "website",
+    title: "The TradieJet Blog",
+    description: "Practical tips and guides to help AU & NZ trades win more work and get paid faster.",
+    url: `${SITE_URL}/blog`,
+  },
+};
+
+// Re-fetch published posts at most every 5 minutes (ISR) so new posts appear without a redeploy.
+export const revalidate = 300;
+
+async function getPosts(): Promise<any[]> {
+  try {
+    const res = await fetch(`${SERVER_API_BASE}/public/blog?limit=50`, { next: { revalidate: 300 } });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json) ? json : (json?.data ?? []);
+  } catch {
+    return [];
+  }
+}
+
+export default async function BlogIndexPage() {
+  const posts = await getPosts();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
@@ -18,11 +40,7 @@ export default function BlogIndexPage() {
         <p className="mt-3 text-gray-600 max-w-2xl">Tips, guides and updates to help Australian &amp; New Zealand trades win more work and get paid faster.</p>
       </header>
 
-      {isLoading ? (
-        <div className="grid sm:grid-cols-2 gap-6">
-          {[0, 1, 2, 3].map((i) => <div key={i} className="h-56 rounded-xl bg-gray-100 animate-pulse" />)}
-        </div>
-      ) : posts.length === 0 ? (
+      {posts.length === 0 ? (
         <div className="rounded-xl border border-dashed p-12 text-center text-gray-500">
           No posts yet — check back soon.
         </div>

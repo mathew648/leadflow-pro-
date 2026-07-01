@@ -1,10 +1,36 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { SubscribeForm } from "@/components/subscribe-form";
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION, OG_IMAGE } from "@/lib/site";
+
+// Site-wide Organization + WebSite structured data (helps Google build a knowledge panel and
+// understand the brand). Renders on every marketing page via this shared layout.
+const orgJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}${OG_IMAGE}`,
+      description: SITE_DESCRIPTION,
+      areaServed: ["AU", "NZ"],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+  ],
+};
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-white text-gray-900">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between">
           <Link href="/" aria-label="TradieJet home">
