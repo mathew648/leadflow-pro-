@@ -84,7 +84,8 @@ export const DEFAULT_AUTOMATIONS: DefaultAutomation[] = [
           subject: "Thanks for approving your quote!",
           message:
             "Hi {{customer.firstName}},<br/><br/>Thanks for approving quote {{quote.quoteNumber}}. " +
-            "We'll be in touch shortly to lock in a time that suits you.<br/><br/>Cheers,<br/>{{tenant.name}}",
+            "We'll be in touch shortly to lock in a time that suits you.<br/><br/>" +
+            "You can view your approved quote any time here: {{quote.portalUrl}}<br/><br/>Cheers,<br/>{{tenant.name}}",
         },
       },
     ],
