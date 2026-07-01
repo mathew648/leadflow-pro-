@@ -1,10 +1,12 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL, SERVER_API_BASE } from "@/lib/site";
+import { TRADE_SLUGS, COMPETITOR_SLUGS } from "@/lib/landing-data";
 
 // Public marketing routes worth indexing (login/dashboard/app pages are gated, so excluded).
 const STATIC_ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"] }[] = [
   { path: "", priority: 1.0, changeFrequency: "weekly" },
   { path: "/features", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/for", priority: 0.8, changeFrequency: "monthly" },
   { path: "/compare", priority: 0.8, changeFrequency: "monthly" },
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" },
   { path: "/blog", priority: 0.7, changeFrequency: "weekly" },
@@ -12,6 +14,9 @@ const STATIC_ROUTES: { path: string; priority: number; changeFrequency: Metadata
   { path: "/waitlist", priority: 0.5, changeFrequency: "yearly" },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" },
+  // Programmatic SEO landing pages (trade + competitor comparison).
+  ...TRADE_SLUGS.map((slug) => ({ path: `/for/${slug}`, priority: 0.7, changeFrequency: "monthly" as const })),
+  ...COMPETITOR_SLUGS.map((slug) => ({ path: `/compare/${slug}`, priority: 0.7, changeFrequency: "monthly" as const })),
 ];
 
 // Rebuild the sitemap hourly so newly published blog posts appear without a redeploy.

@@ -73,6 +73,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <p>Built for Australian &amp; New Zealand trades businesses.</p>
             <div className="flex gap-5 flex-wrap">
               <Link href="/features" className="hover:text-gray-900">Features</Link>
+              <Link href="/for" className="hover:text-gray-900">For your trade</Link>
+              <Link href="/compare" className="hover:text-gray-900">Compare</Link>
               <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
               <Link href="/blog" className="hover:text-gray-900">Blog</Link>
               <Link href="/waitlist" className="hover:text-gray-900">Waitlist</Link>

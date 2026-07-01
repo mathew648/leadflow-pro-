@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check, X, ArrowRight } from "lucide-react";
+import { COMPETITORS } from "@/lib/landing-data";
 
 export const metadata = {
   title: "Why TradieJet — Own your leads, flat pricing",
@@ -118,6 +119,24 @@ export default function ComparePage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* Specific comparisons */}
+      <section className="mx-auto max-w-5xl px-4 py-16 border-t">
+        <h2 className="text-2xl font-bold text-center">Compare TradieJet to your current tool</h2>
+        <p className="mt-3 text-gray-600 text-center max-w-2xl mx-auto">See a side-by-side breakdown against the software you might be using today.</p>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {COMPETITORS.map((c) => (
+            <Link key={c.slug} href={`/compare/${c.slug}`} className="group flex items-center justify-between rounded-xl border p-4 hover:border-brand-300 hover:shadow-sm transition-all">
+              <span className="font-medium">TradieJet vs {c.name}</span>
+              <ArrowRight className="w-4 h-4 text-brand-600 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          ))}
+        </div>
+        <p className="mt-8 text-center text-sm text-gray-600">
+          Or see how TradieJet is tailored{" "}
+          <Link href="/for" className="font-semibold text-brand-700 hover:underline">for your trade</Link>.
+        </p>
       </section>
 
       {/* CTA */}
