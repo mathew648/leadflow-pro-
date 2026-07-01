@@ -391,10 +391,29 @@ model User {
   locationPings   LocationPing[]
   auditLogs       AuditLog[]
   pushSubscriptions PushSubscription[]
+  loginOtpChallenges LoginOtpChallenge[]
 
   @@unique([email, tenantId])
   @@index([tenantId])
   @@map("users")
+}
+
+// Short-lived email 2FA codes issued at login (owners/admins). The code is stored hashed;
+// challenges are single-use, expire in minutes, and cap failed attempts to stop brute-force.
+model LoginOtpChallenge {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @db.Uuid @map("user_id")
+  codeHash   String    @db.VarChar(255) @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at")
+  ipAddress  String?   @db.VarChar(45) @map("ip_address")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("login_otp_challenges")
 }
 
 model PushSubscription {

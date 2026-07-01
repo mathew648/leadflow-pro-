@@ -29,13 +29,35 @@ export interface AuthUser {
   };
 }
 
-export async function login(email: string, password: string): Promise<{ accessToken: string; user: AuthUser }> {
+// A login either completes (tokens + user) or requires an emailed 2FA code (owners/admins).
+export type LoginResult =
+  | { requiresOtp: true; challengeId: string; email: string }
+  | { requiresOtp?: false; accessToken: string; user: AuthUser };
+
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const data = await api.post<LoginResult>("/auth/login", { email, password });
+  if ("requiresOtp" in data && data.requiresOtp) return data;
+  setToken((data as { accessToken: string }).accessToken);
+  return data;
+}
+
+// Second step of email 2FA — exchange the emailed code for a session.
+export async function verifyLoginOtp(
+  challengeId: string,
+  code: string,
+  rememberDevice: boolean
+): Promise<{ accessToken: string; user: AuthUser }> {
   const data = await api.post<{ accessToken: string; expiresIn: number; user: AuthUser }>(
-    "/auth/login",
-    { email, password }
+    "/auth/login/verify-otp",
+    { challengeId, code, rememberDevice }
   );
   setToken(data.accessToken);
   return data;
+}
+
+// Reissue a fresh code for an in-progress 2FA login. Returns the new challenge id.
+export async function resendLoginOtp(challengeId: string): Promise<{ challengeId: string; email: string }> {
+  return api.post<{ challengeId: string; email: string }>("/auth/login/resend-otp", { challengeId });
 }
 
 export async function register(body: {

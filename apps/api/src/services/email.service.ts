@@ -185,6 +185,18 @@ function renderTemplate(template: string, data: Record<string, unknown>): { html
       break;
     }
 
+    case "login_code": {
+      const { firstName, code, ttlMinutes } = data;
+      body = `
+      <p style="font-size:16px;">Hi ${firstName ?? "there"},</p>
+      <p>Use this code to finish signing in to your ${businessName} account:</p>
+      <p style="text-align:center;margin:28px 0;">
+        <span style="display:inline-block;font-size:32px;font-weight:700;letter-spacing:10px;background:#F3F4F6;color:#111827;padding:16px 24px;border-radius:12px;">${code}</span>
+      </p>
+      <p>This code expires in ${ttlMinutes ?? 5} minutes. If you didn't try to sign in, you can safely ignore this email — your account is still secure.</p>`;
+      break;
+    }
+
     case "custom": {
       body = `<div style="padding:8px 0;">${String(data.body ?? "")}</div>`;
       break;

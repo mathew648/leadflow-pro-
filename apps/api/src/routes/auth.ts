@@ -11,6 +11,12 @@ import { seedDefaultAutomations } from "../lib/default-automations.js";
 import { seedStarterCatalog } from "../lib/default-catalog.js";
 import { isPlatformAdmin } from "../lib/platform-admin.js";
 import { PLANS } from "../lib/plans.js";
+import { enqueueEmail } from "../lib/queue.js";
+import {
+  requiresEmail2FA, generateOtpCode, hashOtpCode, verifyOtpCode,
+  setTrustedDeviceCookie, hasTrustedDeviceCookie, maskEmail,
+  OTP_TTL_SECONDS, OTP_MAX_ATTEMPTS,
+} from "../lib/two-factor.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -37,6 +43,106 @@ const refreshSchema = z.object({
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
+  // Issue the access token, refresh token + cookie, record the login, and return the standard
+  // login response. Shared by the normal login path and the 2FA verify path so both are identical.
+  async function issueSession(reply: any, request: any, user: any) {
+    const accessToken = fastify.jwt.sign({
+      sub: user.id,
+      tid: user.tenantId,
+      email: user.email,
+      role: user.role,
+      name: `${user.firstName} ${user.lastName}`,
+    });
+
+    const refreshToken = fastify.jwt.sign(
+      { sub: user.id, type: "refresh", jti: nanoid() } as any,
+      { expiresIn: config.JWT_REFRESH_EXPIRY }
+    );
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + config.JWT_REFRESH_EXPIRY * 1000),
+      },
+    });
+
+    // Fire-and-forget — don't make the user wait on these writes.
+    prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: request.ip },
+    }).catch(() => {});
+
+    writeAuditLog({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: "login",
+      entityType: "user",
+      entityId: user.id,
+      ipAddress: request.ip,
+      userAgent: request.headers["user-agent"],
+    }).catch(() => {});
+
+    reply.setCookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: config.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: config.JWT_REFRESH_EXPIRY,
+      path: "/api/v1/auth",
+    });
+
+    return reply.status(200).send({
+      data: {
+        accessToken,
+        expiresIn: config.JWT_ACCESS_EXPIRY,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          avatarUrl: user.avatarUrl,
+          isPlatformAdmin: isPlatformAdmin(user.email),
+          tenant: {
+            id: user.tenant.id,
+            name: user.tenant.businessName,
+            slug: user.tenant.slug,
+            subscriptionTier: user.tenant.subscription?.tier ?? "sole_trader",
+            accountType: user.tenant.accountType,
+            country: user.tenant.country,
+            currency: user.tenant.currency,
+            logoUrl: user.tenant.logoUrl,
+            primaryColor: user.tenant.primaryColor,
+          },
+        },
+      },
+    });
+  }
+
+  // Create a fresh email-OTP challenge for a user and email them the code. Any prior unconsumed
+  // challenge is dropped so only the newest code works. Returns the new challenge id.
+  async function startEmailOtpChallenge(request: any, user: { id: string; email: string; firstName: string }): Promise<string> {
+    await prisma.loginOtpChallenge.deleteMany({ where: { userId: user.id, consumedAt: null } });
+    const code = generateOtpCode();
+    const challenge = await prisma.loginOtpChallenge.create({
+      data: {
+        userId: user.id,
+        codeHash: await hashOtpCode(code),
+        expiresAt: new Date(Date.now() + OTP_TTL_SECONDS * 1000),
+        ipAddress: request.ip,
+      },
+    });
+    enqueueEmail({
+      to: user.email,
+      subject: "Your TradieJet login code",
+      template: "login_code",
+      data: { businessName: "TradieJet", firstName: user.firstName, code, ttlMinutes: Math.round(OTP_TTL_SECONDS / 60) },
+    }).catch(() => {});
+    return challenge.id;
+  }
+
   // POST /api/v1/auth/login
   fastify.post(
     "/auth/login",
@@ -76,84 +182,78 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Generate tokens
-      const accessToken = fastify.jwt.sign({
-        sub: user.id,
-        tid: user.tenantId,
-        email: user.email,
-        role: user.role,
-        name: `${user.firstName} ${user.lastName}`,
+      // Email 2FA gate: owners/admins on an untrusted device must verify an emailed code
+      // before any tokens are issued. Everyone else logs in straight away.
+      if (requiresEmail2FA(user.role) && !hasTrustedDeviceCookie(fastify, request, user.id)) {
+        const challengeId = await startEmailOtpChallenge(request, user);
+        return reply.status(200).send({
+          data: { requiresOtp: true, challengeId, email: maskEmail(user.email) },
+        });
+      }
+
+      return issueSession(reply, request, user);
+    }
+  );
+
+  // POST /api/v1/auth/login/verify-otp — second step of email 2FA: exchange the emailed
+  // code for a real session. Optionally trusts this device for 30 days.
+  fastify.post(
+    "/auth/login/verify-otp",
+    { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const body = z.object({
+        challengeId: z.string().uuid(),
+        code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
+        rememberDevice: z.boolean().optional(),
+      }).parse(request.body);
+
+      const invalid = () =>
+        reply.status(401).send({ error: { code: "INVALID_CODE", message: "That code is invalid or has expired. Please try again." } });
+
+      const challenge = await prisma.loginOtpChallenge.findUnique({ where: { id: body.challengeId } });
+      if (!challenge || challenge.consumedAt || challenge.expiresAt < new Date() || challenge.attempts >= OTP_MAX_ATTEMPTS) {
+        return invalid();
+      }
+
+      const ok = await verifyOtpCode(body.code, challenge.codeHash);
+      if (!ok) {
+        await prisma.loginOtpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+        return invalid();
+      }
+
+      // Single-use: burn the challenge before issuing the session.
+      await prisma.loginOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
+
+      const user = await prisma.user.findFirst({
+        where: { id: challenge.userId, deletedAt: null, status: "active" },
+        include: { tenant: { include: { subscription: true } } },
       });
+      if (!user || user.tenant.status !== "active") {
+        return reply.status(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Unable to sign in. Please start again." } });
+      }
 
-      const refreshToken = fastify.jwt.sign(
-        { sub: user.id, type: "refresh", jti: nanoid() } as any,
-        { expiresIn: config.JWT_REFRESH_EXPIRY }
-      );
+      if (body.rememberDevice) setTrustedDeviceCookie(fastify, reply, user.id);
 
-      // Store refresh token
-      await prisma.refreshToken.create({
-        data: {
-          userId: user.id,
-          token: refreshToken,
-          expiresAt: new Date(Date.now() + config.JWT_REFRESH_EXPIRY * 1000),
-        },
-      });
+      return issueSession(reply, request, user);
+    }
+  );
 
-      // Update last login (fire-and-forget — don't make the user wait on this write)
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          lastLoginAt: new Date(),
-          lastLoginIp: request.ip,
-        },
-      }).catch(() => {});
-
-      writeAuditLog({
-        tenantId: user.tenantId,
-        actorId: user.id,
-        actorEmail: user.email,
-        actorRole: user.role,
-        action: "login",
-        entityType: "user",
-        entityId: user.id,
-        ipAddress: request.ip,
-        userAgent: request.headers["user-agent"],
-      }).catch(() => {});
-
-      reply.setCookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: config.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: config.JWT_REFRESH_EXPIRY,
-        path: "/api/v1/auth",
-      });
-
-      return reply.status(200).send({
-        data: {
-          accessToken,
-          expiresIn: config.JWT_ACCESS_EXPIRY,
-          user: {
-            id: user.id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.role,
-            avatarUrl: user.avatarUrl,
-            isPlatformAdmin: isPlatformAdmin(user.email),
-            tenant: {
-              id: user.tenant.id,
-              name: user.tenant.businessName,
-              slug: user.tenant.slug,
-              subscriptionTier: user.tenant.subscription?.tier ?? "sole_trader",
-              accountType: user.tenant.accountType,
-              country: user.tenant.country,
-              currency: user.tenant.currency,
-              logoUrl: user.tenant.logoUrl,
-              primaryColor: user.tenant.primaryColor,
-            },
-          },
-        },
-      });
+  // POST /api/v1/auth/login/resend-otp — reissue a fresh code for an in-progress 2FA login.
+  fastify.post(
+    "/auth/login/resend-otp",
+    { config: { rateLimit: { max: 5, timeWindow: "5 minutes" } } },
+    async (request, reply) => {
+      const body = z.object({ challengeId: z.string().uuid() }).parse(request.body);
+      const prev = await prisma.loginOtpChallenge.findUnique({ where: { id: body.challengeId } });
+      if (!prev || prev.consumedAt) {
+        return reply.status(400).send({ error: { code: "INVALID_CHALLENGE", message: "Please start again from the login screen." } });
+      }
+      const user = await prisma.user.findFirst({ where: { id: prev.userId, deletedAt: null, status: "active" } });
+      if (!user) {
+        return reply.status(400).send({ error: { code: "INVALID_CHALLENGE", message: "Please start again from the login screen." } });
+      }
+      const challengeId = await startEmailOtpChallenge(request, user);
+      return reply.status(200).send({ data: { challengeId, email: maskEmail(user.email) } });
     }
   );
 

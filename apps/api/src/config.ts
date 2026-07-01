@@ -73,6 +73,10 @@ const envSchema = z.object({
 
   ENABLE_AI_FEATURES: z.string().transform((v) => v === "true").default("true"),
 
+  // Email two-factor auth at login for owners/admins. On by default; set to "false" on Render
+  // as a kill-switch if email delivery ever locks people out.
+  EMAIL_2FA_ENABLED: z.string().transform((v) => v !== "false").default("true"),
+
   // Comma-separated emails allowed into the platform admin panel (super-admins).
   PLATFORM_ADMIN_EMAILS: z.string().default(""),
 
