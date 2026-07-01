@@ -75,8 +75,10 @@ export default async function supportRoutes(fastify: FastifyInstance) {
     });
 
     // For the email channel (or out-of-hours), let the team know by email too.
+    // reply-to the tradie so answering from the support inbox reaches them directly.
     enqueueEmail({
       to: config.SUPPORT_EMAIL,
+      replyTo: request.jwtUser.email,
       subject: `New support ${body.channel === "email" ? "request" : "chat"}: ${body.subject}`,
       template: "custom",
       data: { businessName: "TradieJet", body: `<p><strong>${tenant?.businessName ?? "A tradie"}</strong> (${request.jwtUser.email}) opened a ${body.channel} ticket:</p><p><em>${body.subject}</em></p><p>${body.message}</p>` },
@@ -191,6 +193,7 @@ export default async function supportRoutes(fastify: FastifyInstance) {
       enqueueEmail({
         tenantId: ticket.tenantId,
         to: ticket.customerEmail,
+        replyTo: config.SUPPORT_EMAIL,
         subject: `Re: ${ticket.subject} — TradieJet Support`,
         template: "custom",
         data: { businessName: "TradieJet", body: `<p>${agent?.name ?? "Our support team"} replied to your support request:</p><blockquote style="border-left:3px solid #ddd;padding-left:12px;color:#444;">${body.message}</blockquote><p>Log in to TradieJet and open <strong>Support</strong> to continue the conversation.</p>` },
