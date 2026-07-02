@@ -6,6 +6,7 @@ import { auditFromRequest } from "../lib/audit.js";
 import { calculateLineItem, calculateTotals, generatePortalToken } from "../lib/utils.js";
 import { nextJobNumber, nextQuoteNumber, nextInvoiceNumber } from "../lib/numbering.js";
 import { syncQuoteLineItemsToJobMaterials } from "../lib/job-sync.js";
+import { sendBrandedEmail } from "../lib/mailer.js";
 import { config } from "../config.js";
 
 const createJobSchema = z.object({
@@ -497,6 +498,41 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
         entityData: { customerId: job.customerId, customerPhone: job.customer.phone },
       });
 
+      // Email the customer a link to their job photo gallery (customer-visible photos only).
+      if (job.customer.email) {
+        const photoCount = await prisma.jobPhoto.count({ where: { jobId: id, isCustomerVisible: true } });
+        if (photoCount > 0) {
+          // Ensure a stable public gallery token for this job.
+          let galleryToken = job.galleryToken;
+          if (!galleryToken) {
+            galleryToken = generatePortalToken();
+            await prisma.job.update({ where: { id }, data: { galleryToken } });
+          }
+          const tenant = await prisma.tenant.findUnique({
+            where: { id: request.tenantId },
+            select: { businessName: true, primaryColor: true, logoUrl: true, phone: true, email: true },
+          });
+          if (tenant) {
+            sendBrandedEmail({
+              tenantId: request.tenantId,
+              tenant,
+              to: job.customer.email,
+              customerId: job.customerId,
+              jobId: id,
+              subject: `Photos from your completed job — ${tenant.businessName}`,
+              template: "job_completed",
+              data: {
+                customerName: job.customer.firstName ?? "there",
+                jobTitle: job.title,
+                jobNumber: job.jobNumber,
+                galleryUrl: `${config.APP_URL}/job/${galleryToken}`,
+                photoCount,
+              },
+            }).catch(() => {});
+          }
+        }
+      }
+
       // Schedule a Google review request after completion (default 2 hours).
       const settings = await prisma.tenantSettings.findUnique({
         where: { tenantId: request.tenantId },
@@ -521,6 +557,32 @@ export default async function jobsRoutes(fastify: FastifyInstance) {
       };
     }
   );
+
+  // GET /api/v1/jobs/portal/:token — public: customer-facing job photo gallery
+  fastify.get("/jobs/portal/:token", async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const job = await prisma.job.findFirst({
+      where: { galleryToken: token, deletedAt: null },
+      select: {
+        jobNumber: true,
+        title: true,
+        status: true,
+        completedAt: true,
+        completionNotes: true,
+        customer: { select: { firstName: true, lastName: true } },
+        tenant: { select: { businessName: true, logoUrl: true, primaryColor: true, phone: true, email: true } },
+        photos: {
+          where: { isCustomerVisible: true },
+          orderBy: { takenAt: "asc" },
+          select: { id: true, url: true, thumbnailUrl: true, caption: true, takenAt: true },
+        },
+      },
+    });
+    if (!job) {
+      return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Gallery not found" } });
+    }
+    return { data: job };
+  });
 
   // POST /api/v1/jobs/:id/materials
   fastify.post(

@@ -905,6 +905,9 @@ model Job {
   completedAt     DateTime? @map("completed_at")
   completedById   String?   @db.Uuid @map("completed_by_id")
 
+  // Public token for the customer-facing job photo gallery (/job/[token]). Set on completion.
+  galleryToken    String?   @unique @db.VarChar(64) @map("gallery_token")
+
   customFields    Json      @default("{}") @db.JsonB @map("custom_fields")
 
   createdAt   DateTime  @default(now()) @map("created_at")

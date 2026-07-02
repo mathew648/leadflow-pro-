@@ -164,10 +164,16 @@ function renderTemplate(template: string, data: Record<string, unknown>): { html
     }
 
     case "job_completed": {
-      const { customerName, jobTitle, jobNumber } = data;
+      const { customerName, jobTitle, jobNumber, galleryUrl, photoCount } = data;
+      const count = typeof photoCount === "number" ? photoCount : 0;
       body = `
       <p style="font-size:16px;">Hi ${customerName ?? "there"},</p>
       <p>Your job <strong>${jobTitle ?? jobNumber}</strong> is now complete.</p>
+      ${galleryUrl ? `
+      <p>We've added ${count > 0 ? `${count} ` : ""}photo${count === 1 ? "" : "s"} from the job for you to view and download.</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${galleryUrl}" style="background:${primaryColor};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">View your job photos</a>
+      </p>` : ""}
       <p>Thank you for choosing ${businessName}. If you were happy with the work, we'd love a review!</p>`;
       break;
     }
