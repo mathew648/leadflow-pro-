@@ -189,6 +189,15 @@ export default async function webhooksRoutes(fastify: FastifyInstance) {
           const tenantId = pi.metadata?.tenantId;
 
           if (invoiceId && tenantId) {
+            // Idempotency: Stripe can deliver the same event more than once (retries /
+            // redeliveries). Without this guard a duplicate delivery would create a second
+            // Payment row and double-decrement the invoice's amount due.
+            const already = await prisma.payment.findFirst({
+              where: { tenantId, gatewayTransactionId: pi.id },
+              select: { id: true },
+            });
+            if (already) break;
+
             const invoice = await prisma.invoice.findFirst({
               where: { id: invoiceId, tenantId },
             });
