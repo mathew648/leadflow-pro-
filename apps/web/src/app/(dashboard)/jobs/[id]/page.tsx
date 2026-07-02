@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { uploadJobPhoto } from "@/lib/upload";
 import { formatCurrency, formatDate, formatDateTime, statusColor, priorityColor, cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -79,6 +80,7 @@ export default function JobDetailPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "time" | "materials" | "photos">("overview");
   const [completionNotes, setCompletionNotes] = useState("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
   const [newMaterial, setNewMaterial] = useState({ catalogItemId: "", name: "", quantity: 1, unitCostCents: 0, unitPriceCents: 0 });
   const [newTask, setNewTask] = useState("");
 
@@ -106,10 +108,17 @@ export default function JobDetailPage() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: () => api.post(`/jobs/${id}/complete`, { completionNotes, createInvoice: true }),
+    mutationFn: async () => {
+      // Attach any completion photos to the job's gallery before marking it complete.
+      for (const file of completionPhotos) {
+        await uploadJobPhoto(file, id, "Completion photo");
+      }
+      return api.post(`/jobs/${id}/complete`, { completionNotes, createInvoice: true });
+    },
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ["job", id] });
       setShowCompleteDialog(false);
+      setCompletionPhotos([]);
       toast({ title: "Job completed!", description: res?.invoice ? "Invoice created automatically." : undefined });
       if (res?.invoice?.id) router.push(`/invoices/${res.invoice.id}`);
     },
@@ -306,9 +315,20 @@ export default function JobDetailPage() {
                   rows={2}
                   className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-green-400 resize-none mb-2"
                 />
+                <label className="flex items-center gap-2 text-sm text-green-800 mb-2 cursor-pointer w-fit">
+                  <Camera className="w-4 h-4" />
+                  <span>{completionPhotos.length > 0 ? `${completionPhotos.length} photo${completionPhotos.length > 1 ? "s" : ""} added` : "Add completion photos"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => setCompletionPhotos((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
+                  />
+                </label>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
-                    <CheckCircle className="w-4 h-4 mr-1.5" /> Confirm Complete
+                    <CheckCircle className="w-4 h-4 mr-1.5" /> {completeMutation.isPending ? "Completing…" : "Confirm Complete"}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setShowCompleteDialog(false)}>Cancel</Button>
                 </div>

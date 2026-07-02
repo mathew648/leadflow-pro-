@@ -606,6 +606,24 @@ export default async function invoicesRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /api/v1/invoices/portal/:token/pdf — public: customer downloads the invoice PDF
+  fastify.get("/invoices/portal/:token/pdf", async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const invoice = await prisma.invoice.findFirst({
+      where: { portalToken: token, deletedAt: null },
+      select: { id: true, tenantId: true, pdfUrl: true },
+    });
+    if (!invoice) {
+      return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Invoice not found" } });
+    }
+    if (!invoice.pdfUrl) {
+      // Not generated yet — queue it and tell the client to retry shortly.
+      await enqueuePdf({ tenantId: invoice.tenantId, type: "invoice", entityId: invoice.id });
+      return reply.status(202).send({ data: { status: "generating" } });
+    }
+    return { data: { url: invoice.pdfUrl } };
+  });
+
   // DELETE /api/v1/invoices/:id
   fastify.delete(
     "/invoices/:id",

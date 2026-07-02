@@ -65,6 +65,18 @@ export default function InvoiceDetailPage() {
     onError: (e: any) => toast({ title: e.message ?? "Couldn't start Stripe setup", variant: "destructive" }),
   });
 
+  // Opens the invoice PDF (generates it on first request, then it's cached on the invoice).
+  async function downloadPdf() {
+    try {
+      const res = await api.get<any>(`/invoices/${id}/pdf`);
+      const url = res?.url ?? res?.data?.url;
+      if (url) window.open(url, "_blank", "noopener");
+      else toast({ title: "Preparing your PDF", description: "It's being generated — try again in a few seconds." });
+    } catch (e: any) {
+      toast({ title: "Couldn't download PDF", description: e.message, variant: "destructive" });
+    }
+  }
+
   const sendMutation = useMutation({
     mutationFn: () =>
       api.post<any>(`/invoices/${id}/send`, {
@@ -174,6 +186,9 @@ export default function InvoiceDetailPage() {
                 </a>
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={downloadPdf}>
+              <Download className="w-4 h-4 mr-1.5" /> Download PDF
+            </Button>
             {canSend && (
               <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
                 <Send className="w-4 h-4 mr-1.5" /> Send Invoice

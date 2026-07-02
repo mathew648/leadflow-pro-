@@ -87,7 +87,6 @@ const SOURCE_OPTIONS = [
 const URGENCY_OPTIONS = [
   { value: "normal", label: "Normal" },
   { value: "urgent", label: "Urgent" },
-  { value: "emergency", label: "Emergency" },
   { value: "flexible", label: "Flexible" },
 ];
 
@@ -137,7 +136,7 @@ export default function LeadsPage() {
         urgency: form.urgency,
         estimatedValueCents: form.estimatedValue ? Math.round(Number(form.estimatedValue) * 100) : undefined,
         notes: form.notes || undefined,
-        stageId: form.stageId || undefined,
+        stageId: form.stageId || defaultStageId || undefined,
       }),
     onSuccess: (res: any) => {
       toast({ title: "Lead created!" });
@@ -150,6 +149,11 @@ export default function LeadsPage() {
   });
 
   const stages = stagesData ?? [];
+  // New leads default to the "New" stage (fall back to the pipeline's default stage, then the first).
+  const defaultStageId =
+    stages.find((s: any) => String(s.name).toLowerCase() === "new")?.id ??
+    stages.find((s: any) => s.isDefault)?.id ??
+    stages[0]?.id ?? "";
   const pipeline = pipelineData ?? {};
 
   // Group leads by stageId
@@ -401,11 +405,10 @@ export default function LeadsPage() {
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Pipeline Stage</label>
                   <select
-                    value={form.stageId}
+                    value={form.stageId || defaultStageId}
                     onChange={(e) => setForm((f) => ({ ...f, stageId: e.target.value }))}
                     className="w-full mt-0.5 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="">Default stage</option>
                     {stages.map((s: any) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}

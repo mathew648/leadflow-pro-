@@ -115,6 +115,23 @@ export default function FieldJobPage() {
     }
   }
 
+  // Upload one or more completion photos from inside the "Complete job" sheet.
+  async function handleCompletionPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      for (const f of files) await uploadJobPhoto(f, id, "Completion photo");
+      toast({ title: `${files.length} photo${files.length > 1 ? "s" : ""} added` });
+      refresh();
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+      e.target.value = "";
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-24">
@@ -370,6 +387,14 @@ export default function FieldJobPage() {
                   placeholder="What was done…"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Completion photos</label>
+                <label className="mt-1 flex w-fit items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 cursor-pointer active:bg-gray-50">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  <span>Add photos</span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleCompletionPhotos} />
+                </label>
               </div>
               <div>
                 <label className="text-xs text-gray-500">Customer sign-off name</label>

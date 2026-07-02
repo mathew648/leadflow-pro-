@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { CheckCircle, Clock, AlertCircle, CreditCard, Zap, Phone, Mail, Banknote, Loader2, Paperclip } from "lucide-react";
+import { CheckCircle, Clock, AlertCircle, CreditCard, Zap, Phone, Mail, Banknote, Loader2, Paperclip, Download } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
@@ -81,6 +81,17 @@ export default function InvoicePayPortal() {
       setSubmitted(true);
     } catch (e: any) { setPayError(e.message); }
     finally { setSubmitting(false); }
+  };
+
+  const downloadPdf = async () => {
+    setPayError("");
+    try {
+      const r = await fetch(`${API_BASE}/invoices/portal/${token}/pdf`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error?.message ?? "Could not get PDF");
+      if (j?.data?.url) window.open(j.data.url, "_blank", "noopener");
+      else setPayError("Your invoice PDF is being generated — please try again in a few seconds.");
+    } catch (e: any) { setPayError(e.message); }
   };
 
   if (loading) {
@@ -182,6 +193,16 @@ export default function InvoicePayPortal() {
                 {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}
               </p>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={downloadPdf}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 border rounded-lg px-3 py-2 hover:bg-gray-50"
+            >
+              <Download className="w-4 h-4" /> Download PDF
+            </button>
           </div>
 
           {/* Amount summary */}

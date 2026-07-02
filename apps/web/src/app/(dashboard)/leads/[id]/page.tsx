@@ -420,11 +420,6 @@ export default function LeadDetailPage() {
             {/* Actions */}
             <Card>
               <CardContent className="p-4 space-y-2">
-                <Link href={`/quotes/new?leadId=${id}&customerId=${lead.convertedToCustomerId ?? ""}`}>
-                  <Button variant="outline" size="sm" className="w-full justify-start gap-2">
-                    <FileText className="w-4 h-4" /> Create Quote
-                  </Button>
-                </Link>
                 {lead.phone && (
                   <a href={`tel:${lead.phone}`}>
                     <Button variant="outline" size="sm" className="w-full justify-start gap-2">

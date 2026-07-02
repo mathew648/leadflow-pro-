@@ -25,11 +25,15 @@ const schema = z.object({
   lastName: z.string().min(1, "Required"),
   email: z.string().email("Invalid email"),
   password: z.string().min(8, "At least 8 characters"),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
   businessName: z.string().min(1, "Required"),
   abn: z.string().optional(),
   phone: z.string().optional(),
   country: z.enum(["AU", "NZ"]),
   tradeTypes: z.array(z.string()).default([]),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -84,8 +88,9 @@ function RegisterForm() {
 
   async function onSubmit(values: FormValues) {
     try {
+      const { confirmPassword: _cp, ...rest } = values;
       const { user } = await registerUser({
-        ...values,
+        ...rest,
         timezone: values.country === "NZ" ? "Pacific/Auckland" : "Australia/Sydney",
         tradeTypes: accountType === "tradie" ? selectedTrades : [],
         accountType,
@@ -105,7 +110,7 @@ function RegisterForm() {
     if (working || isSubmitting) return; // guard against rapid double-taps
     setWorking(true);
     try {
-      const ok = await trigger(["firstName", "lastName", "businessName", "email", "password"]);
+      const ok = await trigger(["firstName", "lastName", "businessName", "email", "password", "confirmPassword"]);
       if (!ok) return;
       if (accountType === "tradie") setStep(2);
       else await handleSubmit(onSubmit)();
@@ -219,6 +224,11 @@ function RegisterForm() {
                   <Label>Password</Label>
                   <Input type="password" placeholder="At least 8 characters" {...register("password")} />
                   {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Confirm password</Label>
+                  <Input type="password" placeholder="Re-enter your password" {...register("confirmPassword")} />
+                  {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Phone (optional)</Label>
