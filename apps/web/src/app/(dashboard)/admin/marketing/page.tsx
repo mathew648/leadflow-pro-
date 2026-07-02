@@ -217,6 +217,15 @@ function BlogTab() {
     mutationFn: (id: string) => api.delete(`/admin/blog/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-blog"] }); toast({ title: "Post deleted" }); },
   });
+  const seedStarter = useMutation({
+    mutationFn: () => api.post<any>("/admin/blog/seed-starter"),
+    onSuccess: (r: any) => {
+      const d = r?.data ?? r;
+      qc.invalidateQueries({ queryKey: ["admin-blog"] });
+      toast({ title: "Starter posts published", description: `${d?.created ?? 0} added, ${d?.updated ?? 0} updated.` });
+    },
+    onError: (e: any) => toast({ title: "Couldn't add starter posts", description: e.message, variant: "destructive" }),
+  });
 
   if (editing) {
     const p = editing;
@@ -253,7 +262,12 @@ function BlogTab() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-muted-foreground">{posts.length} posts</p>
-        <Button size="sm" onClick={() => setEditing({ ...emptyPost })}><Plus className="w-4 h-4 mr-1.5" /> New post</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => seedStarter.mutate()} disabled={seedStarter.isPending} title="Publish 3 ready-made SEO starter posts">
+            {seedStarter.isPending ? "Adding…" : "Add starter posts"}
+          </Button>
+          <Button size="sm" onClick={() => setEditing({ ...emptyPost })}><Plus className="w-4 h-4 mr-1.5" /> New post</Button>
+        </div>
       </div>
       <div className="rounded-lg border divide-y">
         {isLoading ? <div className="p-8 text-center text-muted-foreground">Loading…</div>

@@ -1,18 +1,10 @@
-/**
- * Seeds a set of evergreen, SEO-focused blog posts for the TradieJet marketing blog.
- *
- * Idempotent: upserts by unique slug, so it's safe to run repeatedly (re-running refreshes
- * the copy but preserves each post's original publish date). These are platform-global
- * marketing posts (BlogPost has no tenantId).
- *
- * Run against a database:
- *   DATABASE_URL="<your db url>" pnpm --filter @lfp/db db:seed:blog
- */
-import { PrismaClient } from "@prisma/client";
+// Built-in "starter" blog posts — evergreen, SEO-focused articles a new TradieJet blog can
+// launch with. Published in one click from the admin panel (POST /admin/blog/seed-starter),
+// which upserts by slug so it's safe to run more than once.
 
-const prisma = new PrismaClient();
+export const STARTER_AUTHOR = "TradieJet Team";
 
-interface SeedPost {
+export interface StarterPost {
   slug: string;
   title: string;
   excerpt: string;
@@ -20,9 +12,7 @@ interface SeedPost {
   content: string;
 }
 
-const AUTHOR = "TradieJet Team";
-
-const POSTS: SeedPost[] = [
+export const STARTER_BLOG_POSTS: StarterPost[] = [
   {
     slug: "how-to-quote-a-job-as-a-tradie",
     title: "How to Quote a Job as a Tradie: A Step-by-Step Guide",
@@ -172,42 +162,3 @@ TradieJet sends branded invoices with online card payment, chases overdue invoic
 [See how invoicing and payments work](/features) or [start a free trial](/register).`,
   },
 ];
-
-async function main() {
-  console.log(`Seeding ${POSTS.length} blog posts…`);
-  for (const post of POSTS) {
-    const existing = await prisma.blogPost.findUnique({ where: { slug: post.slug } });
-    await prisma.blogPost.upsert({
-      where: { slug: post.slug },
-      create: {
-        slug: post.slug,
-        title: post.title,
-        excerpt: post.excerpt,
-        content: post.content,
-        tags: post.tags,
-        authorName: AUTHOR,
-        status: "published",
-        publishedAt: new Date(),
-      },
-      update: {
-        title: post.title,
-        excerpt: post.excerpt,
-        content: post.content,
-        tags: post.tags,
-        authorName: AUTHOR,
-        status: "published",
-        // Preserve the original publish date on re-runs.
-        publishedAt: existing?.publishedAt ?? new Date(),
-      },
-    });
-    console.log(`  ✓ ${post.slug}`);
-  }
-  console.log("Done.");
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());

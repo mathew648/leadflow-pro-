@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 import { enqueueEmail } from "../lib/queue.js";
 import { isPlatformAdmin } from "../lib/platform-admin.js";
+import { STARTER_BLOG_POSTS, STARTER_AUTHOR } from "../lib/starter-blog-posts.js";
 
 /**
  * Platform admin panel — cross-tenant, for the TradieJet operator (not tradies).
@@ -379,6 +380,35 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.get("/admin/blog", guard, async () => {
     const posts = await prisma.blogPost.findMany({ orderBy: [{ status: "asc" }, { createdAt: "desc" }] });
     return { data: posts };
+  });
+
+  // POST /api/v1/admin/blog/seed-starter — publish the built-in starter posts (idempotent by slug)
+  fastify.post("/admin/blog/seed-starter", guard, async () => {
+    let created = 0;
+    let updated = 0;
+    for (const p of STARTER_BLOG_POSTS) {
+      const existing = await prisma.blogPost.findUnique({ where: { slug: p.slug } });
+      if (existing) {
+        await prisma.blogPost.update({
+          where: { slug: p.slug },
+          data: {
+            title: p.title, excerpt: p.excerpt, content: p.content, tags: p.tags,
+            authorName: STARTER_AUTHOR, status: "published",
+            publishedAt: existing.publishedAt ?? new Date(),
+          },
+        });
+        updated++;
+      } else {
+        await prisma.blogPost.create({
+          data: {
+            slug: p.slug, title: p.title, excerpt: p.excerpt, content: p.content, tags: p.tags,
+            authorName: STARTER_AUTHOR, status: "published", publishedAt: new Date(),
+          },
+        });
+        created++;
+      }
+    }
+    return { data: { created, updated, total: STARTER_BLOG_POSTS.length } };
   });
 
   // POST /api/v1/admin/blog
